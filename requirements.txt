@@ -2,4 +2,6 @@ streamlit
 google-generativeai
 python-docx
 markdown2
+python-dotenv
+
 xhtml2pdf
