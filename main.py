@@ -547,3 +547,4 @@ if st.session_state.ai_response:
     with dl_col2:
         st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
+
