@@ -1,4 +1,4 @@
-# VERSION 8.7: Enhances the "Analyze Existing Lesson" feature for deeper, more connected strategies
+# VERSION 8.8: Enhances the "Create New Lesson" feature for more in-depth, pedagogically diverse plans
 
 import streamlit as st
 import google.generativeai as genai
@@ -118,7 +118,6 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     if standard and standard.strip():
         standard_instruction = f"Crucially, all suggestions must also align with this educational standard: '{standard.strip()}'."
     
-    # --- UPDATED AND ENHANCED PROMPT ---
     return f"""
     You are an expert SEL instructional coach providing a deep analysis of a teacher's lesson plan. Your tone is supportive, insightful, and professional.
 
@@ -148,6 +147,7 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     {standard_instruction}
     """
 
+# --- UPDATED AND ENHANCED CREATION PROMPT ---
 def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     focus_instruction = ""
     if competency and skill:
@@ -156,13 +156,61 @@ def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
         focus_instruction = f"The lesson's primary SEL focus must be on **{competency}**."
 
     return f"""
-    You are a master K-12 curriculum designer. Create a complete, SEL-integrated lesson plan based on the user's request. {focus_instruction}
+    You are a master curriculum designer and instructional coach, an expert in pedagogy and Social-Emotional Learning. Your task is to create a comprehensive, in-depth, and engaging lesson plan that utilizes diverse teaching approaches.
+
     **Request Details:**
     - **Grade Level:** {grade_level}
     - **Subject:** {subject}
     - **Lesson Topic:** {topic}
-    Generate a complete lesson plan using the following structure in clear Markdown format: # Lesson Plan: {subject} - {topic}, ## 🎯 Learning Objectives, ## 🔑 Vocabulary, ## 🤔 Essential Questions, ## 🎣 Opening Hook, ## 🧑‍🏫 Direct Instruction, ## ✍️ Guided Practice, ## 💡 Independent Practice, ## ✅ Closing.
-    After the main lesson plan, add a separate section for "## 🧠 SEL Integration Strategies" formatted exactly like the analysis output.
+    - **SEL Focus:** {focus_instruction if focus_instruction else "A balanced approach to all CASEL competencies."}
+
+    **Output Format:**
+    Generate a complete lesson plan in clear Markdown format. The lesson must be structured with the following detailed sections. Ensure the instructional sequence follows an "I Do, We Do, You Do" model.
+
+    # Lesson Plan: {subject} - {topic}
+
+    ## 🎯 **Learning Objectives**
+    * *Content Objective:* (What will students know or be able to do related to the subject?)
+    * *SEL Objective:* (What specific SEL skill will students practice?)
+
+    ## 🔑 **Key Vocabulary**
+    * *Content Vocabulary:* (List 3-5 key terms for the academic subject.)
+    * *SEL Vocabulary:* (List 2-3 key terms related to the SEL focus, e.g., "Perspective," "Resilience.")
+
+    ## 📋 **Materials**
+    (List all materials needed for the lesson, including any technology, worksheets, or physical objects.)
+
+    ---
+
+    ## **Lesson Sequence**
+
+    ### 🎣 **Anticipatory Set / Hook** (5-7 minutes)
+    (Describe a short, high-engagement activity to capture student interest and connect to prior knowledge. How will you make them curious?)
+
+    ### 🧑‍🏫 **Direct Instruction (I Do)** (10-15 minutes)
+    (How will the teacher clearly explain and model the new concept or skill? What visuals, examples, or stories will be used?)
+
+    ### ✍️ **Guided Practice (We Do)** (15 minutes)
+    (Describe a collaborative activity where students practice the new skill with teacher support. How will students work together? What is the teacher's role in facilitating?)
+
+    ### 💡 **Independent Practice (You Do)** (10-15 minutes)
+    (Describe a task students will complete on their own to apply their learning. How will they demonstrate their understanding?)
+
+    ### ✅ **Assessment / Check for Understanding**
+    (How will the teacher know if students met the objectives? Describe a formative assessment, such as an exit ticket, a quick poll, or observing student work.)
+
+    ### 🏁 **Closing / Wrap-up** (3-5 minutes)
+    (How will the lesson conclude? Describe a brief activity for students to summarize their learning or reflect on the process.)
+
+    ---
+
+    ## 🧠 **Detailed SEL Alignment**
+
+    ### **Primary CASEL Competency:** [Name of the main competency addressed]
+    * **How it Aligns:** (Explain in detail how the lesson's structure and activities directly teach or allow students to practice this competency. Reference specific parts of the lesson, like the Guided Practice or the topic itself.)
+
+    ### **Secondary CASEL Competency:** [Name of another competency addressed]
+    * **How it Aligns:** (Briefly explain how another competency is supported by the lesson.)
     """
 
 def get_student_materials_prompt(lesson_plan_output):
