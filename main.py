@@ -1,4 +1,4 @@
-# VERSION 8.6: Adds support for PPTX and PDF uploads
+# VERSION 8.7: Enhances the "Analyze Existing Lesson" feature for deeper, more connected strategies
 
 import streamlit as st
 import google.generativeai as genai
@@ -28,7 +28,6 @@ for key, default_value in SESSION_STATE_DEFAULTS.items():
         st.session_state[key] = default_value
 
 # --- CONSTANTS & OTHER SETUP ---
-# ... (Your constants like SAFETY_SETTINGS, GRADE_LEVELS, etc. are here)
 SAFETY_SETTINGS = {"HARM_CATEGORY_HARASSMENT": "BLOCK_NONE", "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE", "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE", "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"}
 GRADE_LEVELS = ["Kindergarten", "1st Grade", "2nd Grade", "3rd Grade", "4th Grade", "5th Grade", "6th Grade", "7th Grade", "8th Grade", "9th Grade", "10th Grade", "11th Grade", "12th Grade"]
 SUBJECTS = ["Science", "History", "English Language Arts", "Mathematics", "Art", "Music"]
@@ -43,7 +42,6 @@ CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
 
 # --- API CONFIGURATION ---
-# ... (Your API configuration is here)
 try:
     api_key = os.environ['GEMINI_API_KEY']
     genai.configure(api_key=api_key)
@@ -58,10 +56,8 @@ except Exception as e:
 
 # --- HELPER FUNCTIONS ---
 def read_document(uploaded_file):
-    """Reads various file types and returns the extracted text."""
     file_extension = os.path.splitext(uploaded_file.name)[1].lower()
     file_bytes = io.BytesIO(uploaded_file.read())
-    
     text_content = ""
     try:
         if file_extension == ".docx":
@@ -84,7 +80,6 @@ def read_document(uploaded_file):
         return None
     return text_content
 
-# ... (All your other helper functions like create_pdf, create_docx, etc. are here)
 def create_pdf(markdown_text):
     html_text = markdown2.markdown(markdown_text)
     pdf_file = io.BytesIO()
@@ -112,7 +107,6 @@ def format_moves(moves):
     else: return str(moves)
 
 # --- PROMPTS ---
-# ... (All your prompt functions are here)
 def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     focus_instruction = ""
     if competency and skill:
@@ -124,7 +118,35 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     if standard and standard.strip():
         standard_instruction = f"Crucially, all suggestions must also align with this educational standard: '{standard.strip()}'."
     
-    return f"You are an SEL instructional coach. Analyze this lesson plan, suggest SEL integration points in Markdown format. {focus_instruction} {standard_instruction}\n\nLesson Plan:\n---\n{lesson_plan_text}\n---"
+    # --- UPDATED AND ENHANCED PROMPT ---
+    return f"""
+    You are an expert SEL instructional coach providing a deep analysis of a teacher's lesson plan. Your tone is supportive, insightful, and professional.
+
+    **Teacher's Lesson Plan:**
+    ---
+    {lesson_plan_text}
+    ---
+
+    **Your Task (in three parts):**
+
+    **Part 1: CASEL Competency Analysis**
+    First, identify the CASEL competencies already present or easily connected to the lesson's topic and activities. For each competency you identify, provide:
+    - **Competency Name:** (e.g., Social Awareness)
+    - **How it Connects:** Briefly explain how the lesson's content (e.g., historical events, scientific concepts, character motivations) naturally links to this competency.
+    - **Benefits for Students & Teachers:** Explain the value of highlighting this competency. How does it help students deepen their academic understanding? How does it help the teacher manage the classroom and foster a positive learning environment?
+
+    **Part 2: Topic-Connected SEL Integration Strategies**
+    Next, provide 2-3 highly specific, actionable SEL integration strategies. **These strategies must be directly connected to the topics and activities in the provided lesson plan.** Avoid generic advice. For each strategy, use the following format:
+    - **When:** Describe the exact moment in the lesson to use the strategy (e.g., "During the warm-up discussion about the water cycle," "While students are analyzing the main character's dilemma").
+    - **Strategy:** Provide a clear, step-by-step description of the strategy.
+    - **Teacher Note:** Explain the SEL goal of this specific action.
+
+    **Part 3: Example Language**
+    Provide two examples of specific language the teacher could use to introduce one of the strategies or facilitate a discussion.
+
+    {focus_instruction}
+    {standard_instruction}
+    """
 
 def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     focus_instruction = ""
@@ -238,7 +260,6 @@ with tab1:
     
     st.markdown("---")
     
-    # --- UPDATED FILE UPLOADER ---
     uploaded_file = st.file_uploader("Upload a .txt, .docx, .pptx, or .pdf file", type=["txt", "docx", "pptx", "pdf"])
     
     lesson_text_paste = st.text_area("Or paste the full text of your lesson plan here.", height=200)
@@ -264,7 +285,6 @@ with tab1:
         else:
             st.warning("Please upload or paste a lesson plan to begin.")
 
-# ... (The rest of your UI code for tabs 2 through 6 and the output area remains the same) ...
 with tab2:
     # --- CREATION TAB ---
     st.header("Create a New, SEL-Integrated Lesson")
@@ -526,3 +546,4 @@ if st.session_state.ai_response:
         st.download_button(label="Download as PDF", data=pdf_file, file_name="sel_plan.pdf", mime="application/pdf")
     with dl_col2:
         st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
