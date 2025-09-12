@@ -1,9 +1,0 @@
-streamlit
-google-generativeai
-python-docx
-markdown2
-xhtml2pdf
-python-dotenv
-python-pptx
-PyPDF2
-
