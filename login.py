@@ -31,4 +31,5 @@ def check_password():
     return False
 
 if check_password():
-    st.switch_page("pages/app.py")
+
+   st.switch_page("app")
