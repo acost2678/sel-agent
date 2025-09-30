@@ -10,7 +10,7 @@ import docx
 from dotenv import load_dotenv
 import io
 import markdown2
-from xhtml2pdf import pisa
+from weasyprint import HTML
 import json
 from pptx import Presentation
 from PyPDF2 import PdfReader
@@ -86,10 +86,13 @@ def read_document(uploaded_file):
 def create_pdf(markdown_text):
     html_text = markdown2.markdown(markdown_text)
     pdf_file = io.BytesIO()
-    pisa_status = pisa.CreatePDF(io.StringIO(html_text), dest=pdf_file)
-    if pisa_status.err: return None
-    pdf_file.seek(0)
-    return pdf_file
+    try:
+        HTML(string=html_text).write_pdf(pdf_file)
+        pdf_file.seek(0)
+        return pdf_file
+    except Exception as e:
+        st.error(f"Error creating PDF: {e}")
+        return None
 
 def create_docx(text):
     doc = docx.Document()
