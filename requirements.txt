@@ -2,8 +2,9 @@ streamlit
 google-generativeai
 python-docx
 markdown2
-weasyprint
+fpdf2
 python-dotenv
 python-pptx
 
 PyPDF2
+
