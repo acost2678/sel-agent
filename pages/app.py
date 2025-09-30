@@ -79,15 +79,27 @@ def read_document(uploaded_file):
         return None
     return text_content
 
+# --- This is the NEW, corrected function ---
 def create_pdf(markdown_text):
     html_text = markdown2.markdown(markdown_text, extras=["cuddled-lists", "tables"])
+    
+    # Encode the HTML to UTF-8 to handle special characters
+    html_encoded = html_text.encode('latin-1', 'replace').decode('latin-1')
+
     pdf = FPDF()
+    # Add a Unicode-supporting font. DejaVu is a good choice.
+    # The font files must be available with the library.
+    pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.set_font("DejaVu", size=12)
+    
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
     pdf.cell(0, 0, "") 
-    pdf.write_html(html_text)
-    pdf_output = pdf.output(dest='S').encode('latin1')
+    pdf.write_html(html_encoded)
+    
+    # Output the PDF to a byte string
+    pdf_output = pdf.output(dest='S').encode('latin-1')
     pdf_file = io.BytesIO(pdf_output)
+    
     pdf_file.seek(0)
     return pdf_file
 
