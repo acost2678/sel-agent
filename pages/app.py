@@ -1,10 +1,6 @@
-# VERSION 9.3: Adds worksheet generation to the Student-Facing Materials feature
+# VERSION 9.4: Switched to Claude model and fixed PDF generation
 import streamlit as st
-# ADD THIS LINE AT THE TOP OF THE FILE
-if not st.session_state.get("password_correct", False):
-    st.switch_page("login.py")
-import streamlit as st
-import google.generativeai as genai
+import anthropic
 import os
 import docx
 from dotenv import load_dotenv
@@ -14,6 +10,10 @@ from fpdf import FPDF
 import json
 from pptx import Presentation
 from PyPDF2 import PdfReader
+
+# This must be the first Streamlit command in your script
+if not st.session_state.get("password_correct", False):
+    st.switch_page("login.py")
 
 # --- INITIAL SETUP ---
 load_dotenv()
@@ -31,7 +31,6 @@ for key, default_value in SESSION_STATE_DEFAULTS.items():
         st.session_state[key] = default_value
 
 # --- CONSTANTS & OTHER SETUP ---
-SAFETY_SETTINGS = {"HARM_CATEGORY_HARASSMENT": "BLOCK_NONE", "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE", "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE", "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"}
 GRADE_LEVELS = ["Kindergarten", "1st Grade", "2nd Grade", "3rd Grade", "4th Grade", "5th Grade", "6th Grade", "7th Grade", "8th Grade", "9th Grade", "10th Grade", "11th Grade", "12th Grade"]
 SUBJECTS = ["Science", "History", "English Language Arts", "Mathematics", "Art", "Music"]
 COMPETENCIES = {
@@ -43,19 +42,16 @@ COMPETENCIES = {
 }
 CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
-
 # --- API CONFIGURATION ---
 try:
-    api_key = os.environ['GEMINI_API_KEY']
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest', safety_settings=SAFETY_SETTINGS)
+    api_key = os.environ['ANTHROPIC_API_KEY']
+    client = anthropic.Anthropic(api_key=api_key)
 except KeyError:
-    st.error("🔴 GEMINI_API_KEY not found. Please make sure you have a .env file with your key.")
+    st.error("🔴 ANTHROPIC_API_KEY not found. Please add it to your Streamlit Secrets.")
     st.stop()
 except Exception as e:
     st.error(f"🔴 An error occurred during API configuration: {e}")
     st.stop()
-
 
 # --- HELPER FUNCTIONS ---
 def read_document(uploaded_file):
@@ -83,22 +79,15 @@ def read_document(uploaded_file):
         return None
     return text_content
 
-# --- This is the NEW function using fpdf2 ---
 def create_pdf(markdown_text):
     html_text = markdown2.markdown(markdown_text, extras=["cuddled-lists", "tables"])
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    
-    # The write_html method in fpdf2 renders HTML.
-    # It requires a cell to be set first to establish margins.
     pdf.cell(0, 0, "") 
     pdf.write_html(html_text)
-    
-    # Save the PDF to a byte string
     pdf_output = pdf.output(dest='S').encode('latin1')
     pdf_file = io.BytesIO(pdf_output)
-    
     pdf_file.seek(0)
     return pdf_file
 
@@ -115,13 +104,8 @@ def create_docx(text):
     docx_file.seek(0)
     return docx_file
 
-def format_moves(moves):
-    if isinstance(moves, list): return ', '.join(moves)
-    elif isinstance(moves, str): return moves
-    else: return str(moves)
-
-# --- PROMPTS ---
 def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
+    # This and all other prompt functions remain the same
     focus_instruction = ""
     if competency and skill:
         focus_instruction = f"The primary focus for SEL integration should be on **{competency}**, with a specific emphasis on the skill of **{skill}**."
@@ -159,6 +143,7 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     {standard_instruction}
     """
 
+# --- (All other get_..._prompt functions are correct and omitted for brevity) ---
 def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     focus_instruction = ""
     if competency and skill:
@@ -202,8 +187,6 @@ def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     ### **Secondary CASEL Competency:** [Name of another competency addressed]
     * **How it Aligns:** (Briefly explain how another competency is supported.)
     """
-
-# --- UPDATED STUDENT MATERIALS PROMPT ---
 def get_student_materials_prompt(lesson_plan_output):
     return f"""
     You are a practical and creative instructional designer. Based on the lesson plan provided below, create a set of student-facing materials in clear Markdown format.
@@ -228,17 +211,13 @@ def get_student_materials_prompt(lesson_plan_output):
     ### 📄 Practice Worksheets
     (Design 1-2 simple, printable worksheets for students to practice or enhance their learning. This could be a fill-in-the-blank, a short scenario analysis, a vocabulary matching exercise, or a graphic organizer related to the lesson's content and SEL skill.)
     """
-
 def get_differentiation_prompt(lesson_plan_output):
     return f"You are an expert in instructional differentiation. Based on the lesson plan, provide strategies to support diverse learners in Markdown format with headings: ###  scaffold Support (For Struggling Learners), ### ⬆️ Extension Activities (For Advanced Learners), ### 🌐 English Language Learner (ELL) Support.\n\nLesson Plan:\n---{lesson_plan_output}---"
-
 def get_scenario_prompt(competency, skill, grade_level):
     return f"You are a creative writer. Generate a short, relatable, school-based scenario for a {grade_level} student. The scenario must require them to use the SEL competency of **{competency}**, focusing on the skill of **{skill}**. Present it in the second person ('You are...'), ending with a question. Make it a single paragraph."
-
 def get_feedback_prompt(scenario, history):
     formatted_history = "\n".join([f"- {entry['role']}: {entry['content']}" for entry in history])
     return f"You are a supportive SEL coach. A student is working through this scenario:\n**Scenario:** {scenario}\n**Conversation History:**\n{formatted_history}\nYour task is to ask one or two reflective, Socratic-style questions to help the student think deeper. Keep your response brief and encouraging."
-
 def get_training_prompt(competency):
     sub_competencies = ", ".join(COMPETENCIES[competency])
     return f"""
@@ -253,7 +232,6 @@ def get_training_prompt(competency):
     * **Classroom Move:** A practical strategy.
     ## 🤔 A Final Reflection
     """
-
 def get_training_scenario_prompt(competency, training_module_text):
     return f"""
     You are an expert SEL facilitator. Your task is to create a challenging but common classroom scenario to help a teacher practice the competency of **{competency}**.
@@ -261,13 +239,10 @@ def get_training_scenario_prompt(competency, training_module_text):
     Create a brief, one-paragraph scenario describing a situation a teacher might realistically face. End the scenario with an open-ended question.
     **IMPORTANT:** Generate ONLY the scenario and the concluding question. Do not provide any example answers or feedback.
     """
-
 def get_training_feedback_prompt(competency, scenario, teacher_response):
     return f"You are a supportive SEL coach. The teacher is practicing **{competency}**. \n**Scenario:** {scenario}\n**Teacher's Response:** {teacher_response}\n**Your Task:** Provide constructive, encouraging feedback. Affirm a positive aspect and then ask a reflective question to deepen their practice."
-
 def get_check_in_prompt(grade_level, tone):
     return f"You are an expert teacher. Generate 3-4 creative morning check-in questions for a **{grade_level}** class with a **{tone}** tone. Format as a numbered list."
-
 def get_parent_email_prompt(lesson_plan):
     return f"""
     You are a skilled educator. Based on the provided lesson plan, draft a professional, easy-to-understand email from a teacher to parents.
@@ -277,7 +252,6 @@ def get_parent_email_prompt(lesson_plan):
     2.  **How We Practiced:** Briefly describe a classroom activity.
     3.  **Connection at Home:** Provide one simple conversation starter or activity for parents.
     """
-
 def get_strategy_prompt(situation):
     return f"""
     You are an expert, quick-thinking SEL coach. A teacher needs immediate help with a classroom situation.
@@ -289,7 +263,6 @@ def clear_generated_content():
     keys_to_clear = ["ai_response", "response_title", "student_materials", "differentiation_response", "parent_email"]
     for key in keys_to_clear:
         if key in st.session_state: st.session_state[key] = ""
-
 
 # --- USER INTERFACE ---
 st.title("🧠 SEL Integration Agent")
@@ -329,8 +302,12 @@ with tab1:
                 try:
                     clear_generated_content()
                     prompt = get_analysis_prompt(lesson_content, standard_input, analyze_competency, analyze_skill)
-                    response = model.generate_content(prompt)
-                    st.session_state.ai_response = response.text
+                    message = client.messages.create(
+                        model="claude-3-sonnet-20240229",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.ai_response = message.content[0].text
                     st.session_state.response_title = "SEL Integration Suggestions"
                 except Exception as e: st.error(f"Error during generation: {e}")
         else: st.warning("Please upload or paste a lesson plan to begin.")
@@ -360,8 +337,12 @@ with tab2:
                 try:
                     clear_generated_content()
                     prompt = get_creation_prompt(create_grade, create_subject, create_topic, create_competency, create_skill)
-                    response = model.generate_content(prompt)
-                    st.session_state.ai_response = response.text
+                    message = client.messages.create(
+                        model="claude-3-sonnet-20240229",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.ai_response = message.content[0].text
                     st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
                 except Exception as e: st.error(f"An error occurred: {e}")
 
@@ -380,8 +361,12 @@ with tab3:
         with st.spinner("Writing a scenario..."):
             try:
                 prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
-                response = model.generate_content(prompt)
-                st.session_state.scenario = response.text
+                message = client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                st.session_state.scenario = message.content[0].text
                 st.session_state.conversation_history = []
             except Exception as e: st.error(f"Could not generate a scenario: {e}")
     if st.session_state.scenario:
@@ -397,8 +382,12 @@ with tab3:
                 with st.spinner("Coach is thinking..."):
                     try:
                         feedback_prompt = get_feedback_prompt(st.session_state.scenario, st.session_state.conversation_history)
-                        feedback_response = model.generate_content(feedback_prompt)
-                        st.session_state.conversation_history.append({"role": "Coach", "content": feedback_response.text})
+                        message = client.messages.create(
+                            model="claude-3-sonnet-20240229",
+                            max_tokens=1024,
+                            messages=[{"role": "user", "content": feedback_prompt}]
+                        )
+                        st.session_state.conversation_history.append({"role": "Coach", "content": message.content[0].text})
                         st.rerun()
                     except Exception as e: st.error(f"Could not get feedback: {e}")
 
@@ -412,8 +401,12 @@ with tab4:
             with st.spinner("Preparing your training module..."):
                 try:
                     prompt = get_training_prompt(training_competency)
-                    response = model.generate_content(prompt)
-                    st.session_state.training_module = response.text
+                    message = client.messages.create(
+                        model="claude-3-sonnet-20240229",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.training_module = message.content[0].text
                     st.session_state.training_scenario = ""
                     st.session_state.training_feedback = ""
                 except Exception as e: st.error(f"Could not generate the training module: {e}")
@@ -426,9 +419,13 @@ with tab4:
         if st.button("Generate a Practice Scenario"):
             with st.spinner("Creating a classroom scenario..."):
                 try:
-                    prompt = get_training_scenario_prompt(st.session_state.training_comp_select, st.session_state.training_module)
-                    response = model.generate_content(prompt)
-                    st.session_state.training_scenario = response.text
+                    prompt = get_training_scenario_prompt(training_competency, st.session_state.training_module)
+                    message = client.messages.create(
+                        model="claude-3-sonnet-20240229",
+                        max_tokens=1024,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.training_scenario = message.content[0].text
                     st.session_state.training_feedback = ""
                 except Exception as e: st.error(f"Could not generate the scenario: {e}")
         if st.session_state.training_scenario:
@@ -438,9 +435,13 @@ with tab4:
                 if teacher_response:
                     with st.spinner("Your coach is reviewing your response..."):
                         try:
-                            prompt = get_training_feedback_prompt(st.session_state.training_comp_select, st.session_state.training_scenario, teacher_response)
-                            response = model.generate_content(prompt)
-                            st.session_state.training_feedback = response.text
+                            prompt = get_training_feedback_prompt(training_competency, st.session_state.training_scenario, teacher_response)
+                            message = client.messages.create(
+                                model="claude-3-sonnet-20240229",
+                                max_tokens=1024,
+                                messages=[{"role": "user", "content": prompt}]
+                            )
+                            st.session_state.training_feedback = message.content[0].text
                         except Exception as e: st.error(f"Could not generate feedback: {e}")
                 else: st.warning("Please enter your response above.")
             if st.session_state.training_feedback:
@@ -461,8 +462,12 @@ with tab5:
         with st.spinner("Coming up with some good questions..."):
             try:
                 prompt = get_check_in_prompt(check_in_grade, check_in_tone)
-                response = model.generate_content(prompt)
-                st.session_state.check_in_questions = response.text
+                message = client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                st.session_state.check_in_questions = message.content[0].text
             except Exception as e: st.error(f"Could not generate questions: {e}")
     if st.session_state.check_in_questions:
         st.markdown("---")
@@ -478,8 +483,12 @@ with tab6:
             with st.spinner("Finding effective strategies..."):
                 try:
                     prompt = get_strategy_prompt(situation)
-                    response = model.generate_content(prompt)
-                    st.session_state.strategy_response = response.text
+                    message = client.messages.create(
+                        model="claude-3-sonnet-20240229",
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.strategy_response = message.content[0].text
                 except Exception as e: st.error(f"Could not find a strategy: {e}")
         else: st.warning("Please describe the situation to get a strategy.")
     if st.session_state.strategy_response:
@@ -497,8 +506,12 @@ if st.session_state.ai_response:
         with st.spinner("Drafting a parent email..."):
             try:
                 email_prompt = get_parent_email_prompt(st.session_state.ai_response)
-                email_response = model.generate_content(email_prompt)
-                st.session_state.parent_email = email_response.text
+                message = client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": email_prompt}]
+                )
+                st.session_state.parent_email = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating the email: {e}")
     if st.session_state.parent_email:
         st.text_area("Parent Email Draft", value=st.session_state.parent_email, height=300)
@@ -508,8 +521,12 @@ if st.session_state.ai_response:
         with st.spinner("✍️ Creating student materials..."):
             try:
                 materials_prompt = get_student_materials_prompt(st.session_state.ai_response)
-                materials_response = model.generate_content(materials_prompt)
-                st.session_state.student_materials = materials_response.text
+                message = client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": materials_prompt}]
+                )
+                st.session_state.student_materials = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating materials: {e}")
     if st.session_state.student_materials:
         st.markdown(st.session_state.student_materials)
@@ -519,8 +536,12 @@ if st.session_state.ai_response:
         with st.spinner("💡 Coming up with strategies for diverse learners..."):
             try:
                 diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
-                diff_response = model.generate_content(diff_prompt)
-                st.session_state.differentiation_response = diff_response.text
+                message = client.messages.create(
+                    model="claude-3-sonnet-20240229",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": diff_prompt}]
+                )
+                st.session_state.differentiation_response = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating differentiation strategies: {e}")
     if st.session_state.differentiation_response:
         st.markdown(st.session_state.differentiation_response)
@@ -530,10 +551,16 @@ if st.session_state.ai_response:
     if st.session_state.parent_email: full_download_text += "\n\n---\n\n# Parent Communication Draft\n\n" + st.session_state.parent_email
     if st.session_state.student_materials: full_download_text += "\n\n---\n\n# Student-Facing Materials\n\n" + st.session_state.student_materials
     if st.session_state.differentiation_response: full_download_text += "\n\n---\n\n# Differentiation Strategies\n\n" + st.session_state.differentiation_response
-    pdf_file = create_pdf(full_download_text)
-    docx_file = create_docx(full_download_text)
-    dl_col1, dl_col2 = st.columns(2)
-    with dl_col1:
-        st.download_button(label="Download as PDF", data=pdf_file, file_name="sel_plan.pdf", mime="application/pdf")
-    with dl_col2:
-        st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    
+    # Check if there is text to convert before creating download buttons
+    if full_download_text.strip():
+        pdf_file = create_pdf(full_download_text)
+        docx_file = create_docx(full_download_text)
+        
+        dl_col1, dl_col2 = st.columns(2)
+        with dl_col1:
+            if pdf_file:
+                st.download_button(label="Download as PDF", data=pdf_file, file_name="sel_plan.pdf", mime="application/pdf")
+        with dl_col2:
+            if docx_file:
+                st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
