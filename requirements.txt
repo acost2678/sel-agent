@@ -1,10 +1,10 @@
 streamlit
-google-generativeai
 python-docx
 markdown2
-fpdf2
 python-dotenv
 python-pptx
-
 PyPDF2
+anthropic
+fpdf2
+
 
