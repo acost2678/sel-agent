@@ -5,6 +5,7 @@ python-dotenv
 python-pptx
 PyPDF2
 anthropic
-fpdf2
+fpdf2[fonts]
+
 
 
