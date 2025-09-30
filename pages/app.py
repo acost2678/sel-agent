@@ -10,7 +10,7 @@ import docx
 from dotenv import load_dotenv
 import io
 import markdown2
-from weasyprint import HTML
+from fpdf import FPDF
 import json
 from pptx import Presentation
 from PyPDF2 import PdfReader
@@ -83,16 +83,24 @@ def read_document(uploaded_file):
         return None
     return text_content
 
+# --- This is the NEW function using fpdf2 ---
 def create_pdf(markdown_text):
-    html_text = markdown2.markdown(markdown_text)
-    pdf_file = io.BytesIO()
-    try:
-        HTML(string=html_text).write_pdf(pdf_file)
-        pdf_file.seek(0)
-        return pdf_file
-    except Exception as e:
-        st.error(f"Error creating PDF: {e}")
-        return None
+    html_text = markdown2.markdown(markdown_text, extras=["cuddled-lists", "tables"])
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # The write_html method in fpdf2 renders HTML.
+    # It requires a cell to be set first to establish margins.
+    pdf.cell(0, 0, "") 
+    pdf.write_html(html_text)
+    
+    # Save the PDF to a byte string
+    pdf_output = pdf.output(dest='S').encode('latin1')
+    pdf_file = io.BytesIO(pdf_output)
+    
+    pdf_file.seek(0)
+    return pdf_file
 
 def create_docx(text):
     doc = docx.Document()
