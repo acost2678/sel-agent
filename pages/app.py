@@ -89,7 +89,7 @@ def create_pdf(markdown_text):
     pdf = FPDF()
     # Add a Unicode-supporting font. DejaVu is a good choice.
     # The font files must be available with the library.
-    pdf.add_font("DejaVu", "", "fonts/dejavu-sans-master/ttf/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "", "fonts/dejavu-sans-master/ttf/dejavu-sans-master.ttf", uni=True)
     pdf.set_font("DejaVu", size=12)
     
     pdf.add_page()
@@ -559,21 +559,25 @@ if st.session_state.ai_response:
     if st.session_state.differentiation_response:
         st.markdown(st.session_state.differentiation_response)
     st.markdown("---")
-    st.subheader("📥 Download Your Plan")
-    full_download_text = st.session_state.ai_response
-    if st.session_state.parent_email: full_download_text += "\n\n---\n\n# Parent Communication Draft\n\n" + st.session_state.parent_email
-    if st.session_state.student_materials: full_download_text += "\n\n---\n\n# Student-Facing Materials\n\n" + st.session_state.student_materials
-    if st.session_state.differentiation_response: full_download_text += "\n\n---\n\n# Differentiation Strategies\n\n" + st.session_state.differentiation_response
-    
-    # Check if there is text to convert before creating download buttons
-    if full_download_text.strip():
-        pdf_file = create_pdf(full_download_text)
-        docx_file = create_docx(full_download_text)
-        
-        dl_col1, dl_col2 = st.columns(2)
-        with dl_col1:
-            if pdf_file:
-                st.download_button(label="Download as PDF", data=pdf_file, file_name="sel_plan.pdf", mime="application/pdf")
-        with dl_col2:
-            if docx_file:
-                st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    # --- PASTE THIS NEW BLOCK IN ITS PLACE ---
+st.subheader("📥 Download Your Plan")
+full_download_text = st.session_state.ai_response
+if st.session_state.parent_email: full_download_text += "\n\n---\n\n# Parent Communication Draft\n\n" + st.session_state.parent_email
+if st.session_state.student_materials: full_download_text += "\n\n---\n\n# Student-Facing Materials\n\n" + st.session_state.student_materials
+if st.session_state.differentiation_response: full_download_text += "\n\n---\n\n# Differentiation Strategies\n\n" + st.session_state.differentiation_response
+
+# Check if there is text to convert before creating download buttons
+if full_download_text.strip():
+    docx_file = create_docx(full_download_text)
+
+    dl_col1, dl_col2 = st.columns(2)
+    with dl_col1:
+        st.download_button(
+            label="Download as Text File (.txt)",
+            data=full_download_text,
+            file_name="sel_plan.txt",
+            mime="text/plain"
+        )
+    with dl_col2:
+        if docx_file:
+            st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
