@@ -90,6 +90,7 @@ def create_pdf(markdown_text):
     # Add a Unicode-supporting font. DejaVu is a good choice.
     # The font files must be available with the library.
     pdf.add_font("DejaVu", "", "DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=12)
     
     pdf.add_page()
