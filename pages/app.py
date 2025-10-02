@@ -89,7 +89,7 @@ def create_pdf(markdown_text):
     pdf = FPDF()
     # Add a Unicode-supporting font. DejaVu is a good choice.
     # The font files must be available with the library.
-    pdf.add_font("DejaVu", "", "fonts/fonts/dejavu-sans-master/ttf/DejaVuSans.ttf", uni=True)
+    pdf.add_font("DejaVu", "fonts/dejavu-sans-master/ttf/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=12)
     
     pdf.add_page()
@@ -577,4 +577,3 @@ if st.session_state.ai_response:
         with dl_col2:
             if docx_file:
                 st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-             
