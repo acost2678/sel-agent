@@ -573,10 +573,11 @@ if full_download_text.strip():
     dl_col1, dl_col2 = st.columns(2)
     with dl_col1:
         st.download_button(
-            label="Download as Text File (.txt)",
-            data=full_download_text,
-            file_name="sel_plan.txt",
-            mime="text/plain"
+          label="Download as Text File (.txt)",
+          data=full_download_text.encode('utf-8-sig'),
+          file_name="sel_plan.txt",
+          mime="text/plain"
+)
         )
     with dl_col2:
         if docx_file:
