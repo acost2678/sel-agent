@@ -577,8 +577,8 @@ if full_download_text.strip():
           data=full_download_text.encode('utf-8-sig'),
           file_name="sel_plan.txt",
           mime="text/plain"
-)
-        )
+       )
+        
     with dl_col2:
         if docx_file:
             st.download_button(label="Download as Word Doc (.docx)", data=docx_file, file_name="sel_plan.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
