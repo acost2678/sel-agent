@@ -42,17 +42,6 @@ COMPETENCIES = {
 }
 CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
-# --- API CONFIGURATION ---
-try:
-    api_key = os.environ['ANTHROPIC_API_KEY']
-    client = anthropic.Anthropic(api_key=api_key)
-except KeyError:
-    st.error("🔴 ANTHROPIC_API_KEY not found. Please add it to your Streamlit Secrets.")
-    st.stop()
-except Exception as e:
-    st.error(f"🔴 An error occurred during API configuration: {e}")
-    st.stop()
-
 # --- HELPER FUNCTIONS ---
 def read_document(uploaded_file):
     file_extension = os.path.splitext(uploaded_file.name)[1].lower()
