@@ -14,7 +14,7 @@ from PyPDF2 import PdfReader
 # This must be the first Streamlit command in your script
 if not st.session_state.get("password_correct", False):
     st.switch_page("login.py")
-    client = st.session_state.client
+   client = st.session_state.client
 
 # --- INITIAL SETUP ---
 load_dotenv()
