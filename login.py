@@ -32,4 +32,5 @@ def check_password():
 
 if check_password():
 
-   st.switch_page("pages/home.py")
+    st.switch_page("pages/app.py")
+
