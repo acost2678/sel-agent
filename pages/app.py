@@ -15,7 +15,16 @@ from PyPDF2 import PdfReader
 if not st.session_state.get("password_correct", False):
     st.switch_page("login.py")
     
-client = st.session_state.client
+# --- API CONFIGURATION ---
+try:
+    api_key = st.secrets["ANTHROPIC_API_KEY"]
+    client = anthropic.Anthropic(api_key=api_key)
+except KeyError:
+    st.error("🔴 ANTHROPIC_API_KEY not found. Please add it to your Streamlit Secrets.")
+    st.stop()
+except Exception as e:
+    st.error(f"🔴 An error occurred during API configuration: {e}")
+    st.stop()
 
 # --- INITIAL SETUP ---
 load_dotenv()
