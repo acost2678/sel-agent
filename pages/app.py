@@ -296,7 +296,7 @@ with tab1:
                     clear_generated_content()
                     prompt = get_analysis_prompt(lesson_content, standard_input, analyze_competency, analyze_skill)
                     message = client.messages.create(
-                        model="claude-3-5-sonnet-20240620",
+                        model="claude-3-sonnet-20240229",
                         max_tokens=4096,
                         messages=[{"role": "user", "content": prompt}]
                     )
@@ -330,7 +330,7 @@ with tab2:
                     clear_generated_content()
                     prompt = get_creation_prompt(create_grade, create_subject, create_topic, create_competency, create_skill)
                     message = client.messages.create(
-                        model="claude-3-5-sonnet-20240620",
+                        model="claude-3-sonnet-20240229",
                         max_tokens=4096,
                         messages=[{"role": "user", "content": prompt}]
                     )
@@ -352,7 +352,7 @@ with tab3:
             try:
                 prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
                 message = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
+                    model="claude-3-sonnet-20240229",
                     max_tokens=1024,
                     messages=[{"role": "user", "content": prompt}]
                 )
@@ -373,7 +373,7 @@ with tab3:
                     try:
                         feedback_prompt = get_feedback_prompt(st.session_state.scenario, st.session_state.conversation_history)
                         message = client.messages.create(
-                            model="claude-3-5-sonnet-20240620",
+                            model="claude-3-sonnet-20240229",
                             max_tokens=1024,
                             messages=[{"role": "user", "content": feedback_prompt}]
                         )
@@ -390,7 +390,7 @@ with tab4:
                 try:
                     prompt = get_training_prompt(training_competency)
                     message = client.messages.create(
-                        model="claude-3-5-sonnet-20240620",
+                        model="claude-3-sonnet-20240229",
                         max_tokens=4096,
                         messages=[{"role": "user", "content": prompt}]
                     )
@@ -409,7 +409,7 @@ with tab4:
                 try:
                     prompt = get_training_scenario_prompt(training_competency, st.session_state.training_module)
                     message = client.messages.create(
-                        model="claude-3-5-sonnet-20240620",
+                        model="claude-3-sonnet-20240229",
                         max_tokens=1024,
                         messages=[{"role": "user", "content": prompt}]
                     )
@@ -425,7 +425,7 @@ with tab4:
                         try:
                             prompt = get_training_feedback_prompt(training_competency, st.session_state.training_scenario, teacher_response)
                             message = client.messages.create(
-                                model="claude-3-5-sonnet-20240620",
+                                model="claude-3-sonnet-20240229",
                                 max_tokens=1024,
                                 messages=[{"role": "user", "content": prompt}]
                             )
@@ -449,7 +449,7 @@ with tab5:
             try:
                 prompt = get_check_in_prompt(check_in_grade, check_in_tone)
                 message = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
+                    model="claude-3-sonnet-20240229",
                     max_tokens=1024,
                     messages=[{"role": "user", "content": prompt}]
                 )
@@ -468,7 +468,7 @@ with tab6:
                 try:
                     prompt = get_strategy_prompt(situation)
                     message = client.messages.create(
-                        model="claude-3-5-sonnet-20240620",
+                        model="claude-3-sonnet-20240229",
                         max_tokens=2048,
                         messages=[{"role": "user", "content": prompt}]
                     )
@@ -491,7 +491,7 @@ if st.session_state.ai_response:
             try:
                 email_prompt = get_parent_email_prompt(st.session_state.ai_response)
                 message = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
+                    model="claude-3-sonnet-20240229",
                     max_tokens=2048,
                     messages=[{"role": "user", "content": email_prompt}]
                 )
@@ -506,7 +506,7 @@ if st.session_state.ai_response:
             try:
                 materials_prompt = get_student_materials_prompt(st.session_state.ai_response)
                 message = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
+                    model="claude-3-sonnet-20240229",
                     max_tokens=4096,
                     messages=[{"role": "user", "content": materials_prompt}]
                 )
@@ -521,7 +521,7 @@ if st.session_state.ai_response:
             try:
                 diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
                 message = client.messages.create(
-                    model="claude-3-5-sonnet-20240620",
+                    model="claude-3-sonnet-20240229",
                     max_tokens=4096,
                     messages=[{"role": "user", "content": diff_prompt}]
                 )
