@@ -318,11 +318,13 @@ with tab1:
                 try:
                     clear_generated_content()
                     prompt = get_analysis_prompt(lesson_content, standard_input, analyze_competency, analyze_skill)
-                    message = client.messages.create(
-                        model="claude-2.1",
-                        max_tokens=4096,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                   # --- Replace With This ---
+                   message = client.messages.create(
+                   model="claude-3-5-sonnet-20240620",
+                   max_tokens=4096,
+                   messages=[{"role": "user", "content": prompt}]
+)
+            
                     st.session_state.ai_response = message.content[0].text
                     st.session_state.response_title = "Evidence-Based SEL Recommendation"
                 except Exception as e: st.error(f"Error during generation: {e}")
@@ -354,11 +356,12 @@ with tab2:
                 try:
                     clear_generated_content()
                     prompt = get_creation_prompt(create_grade, create_subject, create_topic, create_competency, create_skill)
-                    message = client.messages.create(
-                        model="claude-2.1",
-                        max_tokens=4096,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                  # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                     st.session_state.ai_response = message.content[0].text
                     st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
                 except Exception as e: st.error(f"An error occurred: {e}")
@@ -376,11 +379,12 @@ with tab3:
         with st.spinner("Writing a scenario..."):
             try:
                 prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
-                message = client.messages.create(
-                    model="claude-2.1",
-                    max_tokens=1024,
-                    messages=[{"role": "user", "content": prompt}]
-                )
+                # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                 st.session_state.scenario = message.content[0].text
                 st.session_state.conversation_history = []
             except Exception as e: st.error(f"Could not generate a scenario: {e}")
@@ -397,11 +401,12 @@ with tab3:
                 with st.spinner("Coach is thinking..."):
                     try:
                         feedback_prompt = get_feedback_prompt(st.session_state.scenario, st.session_state.conversation_history)
-                        message = client.messages.create(
-                            model="claude-2.1",
-                            max_tokens=1024,
-                            messages=[{"role": "user", "content": feedback_prompt}]
-                        )
+                       # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                         st.session_state.conversation_history.append({"role": "Coach", "content": message.content[0].text})
                         st.rerun()
                     except Exception as e: st.error(f"Could not get feedback: {e}")
@@ -414,11 +419,12 @@ with tab4:
             with st.spinner("Preparing your training module..."):
                 try:
                     prompt = get_training_prompt(training_competency)
-                    message = client.messages.create(
-                        model="claude-2.1",
-                        max_tokens=4096,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                   # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                     st.session_state.training_module = message.content[0].text
                     st.session_state.training_scenario = ""
                     st.session_state.training_feedback = ""
@@ -433,11 +439,12 @@ with tab4:
             with st.spinner("Creating a classroom scenario..."):
                 try:
                     prompt = get_training_scenario_prompt(training_competency, st.session_state.training_module)
-                    message = client.messages.create(
-                        model="claude-2.1",
-                        max_tokens=1024,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                    # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                     st.session_state.training_scenario = message.content[0].text
                     st.session_state.training_feedback = ""
                 except Exception as e: st.error(f"Could not generate the scenario: {e}")
@@ -449,11 +456,12 @@ with tab4:
                     with st.spinner("Your coach is reviewing your response..."):
                         try:
                             prompt = get_training_feedback_prompt(training_competency, st.session_state.training_scenario, teacher_response)
-                            message = client.messages.create(
-                                model="claude-2.1",
-                                max_tokens=1024,
-                                messages=[{"role": "user", "content": prompt}]
-                            )
+                           # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                             st.session_state.training_feedback = message.content[0].text
                         except Exception as e: st.error(f"Could not generate feedback: {e}")
                 else: st.warning("Please enter your response above.")
@@ -473,11 +481,12 @@ with tab5:
         with st.spinner("Coming up with some good questions..."):
             try:
                 prompt = get_check_in_prompt(check_in_grade, check_in_tone)
-                message = client.messages.create(
-                    model="claude-2.1",
-                    max_tokens=1024,
-                    messages=[{"role": "user", "content": prompt}]
-                )
+                # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                 st.session_state.check_in_questions = message.content[0].text
             except Exception as e: st.error(f"Could not generate questions: {e}")
     if st.session_state.check_in_questions:
@@ -492,11 +501,12 @@ with tab6:
             with st.spinner("Finding effective strategies..."):
                 try:
                     prompt = get_strategy_prompt(situation)
-                    message = client.messages.create(
-                        model="claude-2.1",
-                        max_tokens=2048,
-                        messages=[{"role": "user", "content": prompt}]
-                    )
+                    # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                     st.session_state.strategy_response = message.content[0].text
                 except Exception as e: st.error(f"Could not find a strategy: {e}")
         else: st.warning("Please describe the situation to get a strategy.")
@@ -515,11 +525,12 @@ if st.session_state.ai_response:
         with st.spinner("Drafting a parent email..."):
             try:
                 email_prompt = get_parent_email_prompt(st.session_state.ai_response)
-                message = client.messages.create(
-                    model="claude-2.1",
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": email_prompt}]
-                )
+                # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                 st.session_state.parent_email = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating the email: {e}")
     if st.session_state.parent_email:
@@ -545,11 +556,12 @@ if st.session_state.ai_response:
         with st.spinner("💡 Coming up with strategies for diverse learners..."):
             try:
                 diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
-                message = client.messages.create(
-                    model="claude-2.1",
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": diff_prompt}]
-                )
+            # --- Replace With This ---
+message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                 st.session_state.differentiation_response = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating differentiation strategies: {e}")
     if st.session_state.differentiation_response:
