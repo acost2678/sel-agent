@@ -320,13 +320,12 @@ with tab1:
                     prompt = get_analysis_prompt(lesson_content, standard_input, analyze_competency, analyze_skill)
                    # --- Replace With This ---
                    message = client.messages.create(
-                   model="claude-3-5-sonnet-20240620",
-                   max_tokens=4096,
-                   messages=[{"role": "user", "content": prompt}]
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
 )
-            
-                    st.session_state.ai_response = message.content[0].text
-                    st.session_state.response_title = "Evidence-Based SEL Recommendation"
+                st.session_state.ai_response = message.content[0].text
+                st.session_state.response_title = "Evidence-Based SEL Recommendation"
                 except Exception as e: st.error(f"Error during generation: {e}")
         else: st.warning("Please upload or paste a lesson plan to begin.")
 
@@ -358,12 +357,12 @@ with tab2:
                     prompt = get_creation_prompt(create_grade, create_subject, create_topic, create_competency, create_skill)
                   # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
-                    st.session_state.ai_response = message.content[0].text
-                    st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
+                 st.session_state.ai_response = message.content[0].text
+                 st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
                 except Exception as e: st.error(f"An error occurred: {e}")
 with tab3:
     st.header("Interactive SEL Scenarios")
@@ -381,7 +380,7 @@ with tab3:
                 prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
                 # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
@@ -403,7 +402,7 @@ message = client.messages.create(
                         feedback_prompt = get_feedback_prompt(st.session_state.scenario, st.session_state.conversation_history)
                        # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
@@ -441,7 +440,7 @@ message = client.messages.create(
                     prompt = get_training_scenario_prompt(training_competency, st.session_state.training_module)
                     # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
@@ -458,11 +457,10 @@ message = client.messages.create(
                             prompt = get_training_feedback_prompt(training_competency, st.session_state.training_scenario, teacher_response)
                            # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
-)
-                            st.session_state.training_feedback = message.content[0].text
+)                      st.session_state.training_feedback = message.content[0].text
                         except Exception as e: st.error(f"Could not generate feedback: {e}")
                 else: st.warning("Please enter your response above.")
             if st.session_state.training_feedback:
@@ -503,7 +501,7 @@ with tab6:
                     prompt = get_strategy_prompt(situation)
                     # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
@@ -527,7 +525,7 @@ if st.session_state.ai_response:
                 email_prompt = get_parent_email_prompt(st.session_state.ai_response)
                 # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
@@ -541,11 +539,11 @@ message = client.messages.create(
         with st.spinner("✍️ Creating student materials..."):
             try:
                 materials_prompt = get_student_materials_prompt(st.session_state.ai_response)
-                message = client.messages.create(
-                    model="claude-2.1",
-                    max_tokens=4096,
-                    messages=[{"role": "user", "content": materials_prompt}]
-                )
+             message = client.messages.create(
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
+    max_tokens=4096,
+    messages=[{"role": "user", "content": prompt}]
+)
                 st.session_state.student_materials = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating materials: {e}")
     if st.session_state.student_materials:
@@ -558,7 +556,7 @@ message = client.messages.create(
                 diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
             # --- Replace With This ---
 message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
+    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
     max_tokens=4096,
     messages=[{"role": "user", "content": prompt}]
 )
