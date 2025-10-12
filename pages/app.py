@@ -1,4 +1,4 @@
-# VERSION 9.5: Integrated evidence-based SEL consultant persona and structured output
+# VERSION 9.6: Final corrected version with Claude 3.5 and new persona
 import streamlit as st
 import anthropic
 import os
@@ -53,7 +53,7 @@ COMPETENCIES = {
 CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
 
-# --- HELPER FUNCTIONS (No changes needed here) ---
+# --- HELPER FUNCTIONS ---
 def read_document(uploaded_file):
     file_extension = os.path.splitext(uploaded_file.name)[1].lower()
     file_bytes = io.BytesIO(uploaded_file.read())
@@ -79,20 +79,6 @@ def read_document(uploaded_file):
         return None
     return text_content
 
-def create_pdf(markdown_text):
-    html_text = markdown2.markdown(markdown_text, extras=["cuddled-lists", "tables"])
-    html_encoded = html_text.encode('latin-1', 'replace').decode('latin-1')
-    pdf = FPDF()
-    pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=12)
-    pdf.add_page()
-    pdf.cell(0, 0, "") 
-    pdf.write_html(html_encoded)
-    pdf_output = pdf.output(dest='S').encode('latin-1')
-    pdf_file = io.BytesIO(pdf_output)
-    pdf_file.seek(0)
-    return pdf_file
-
 def create_docx(text):
     doc = docx.Document()
     doc.add_heading('SEL Integration Plan', 0)
@@ -107,9 +93,6 @@ def create_docx(text):
     return docx_file
 
 # --- PROMPTS (UPDATED FOR NEW PERSONA) ---
-
-# This is the primary system prompt defining the agent's persona and rules.
-# It's now passed into the main prompt functions.
 SYSTEM_PROMPT = """
 You are an intelligent SEL consultant supporting K–12 educators. Your guidance must be practical, evidence-based, and grounded in research from sources like CASEL, ASCA, and peer-reviewed journals (e.g., "Social and Emotional Learning: Research, Practice, and Policy"). You balance scientific rigor with educational practicality.
 
@@ -153,8 +136,6 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     """
 
 def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
-    # The lesson plan creation prompt is slightly different, focusing on building a plan.
-    # It will be prefaced with a rationale that follows the new guidelines.
     focus_instruction = ""
     if competency and skill:
         focus_instruction = f"The lesson's primary SEL focus must be on **{competency}**, specifically developing the skill of **{skill}**."
@@ -201,7 +182,6 @@ def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     """
 
 def get_strategy_prompt(situation):
-    # This prompt is for quick, in-the-moment help, so it uses a condensed version of the main format.
     return f"""
     {SYSTEM_PROMPT}
 
@@ -217,7 +197,6 @@ def get_strategy_prompt(situation):
     - **Expected Outcome:** (1 sentence describing the observable outcome, e.g., "Students should appear calmer and more focused.")
     """
 
-# --- (Other prompt functions remain largely the same, as they build on the main responses) ---
 def get_student_materials_prompt(lesson_plan_output):
     return f"""
     You are a practical instructional designer. Based on the provided lesson plan or SEL recommendation, create a set of student-facing materials in clear Markdown format. Ensure the materials are grade-level appropriate and align with evidence-based practices (e.g., open-ended questions for reflection).
@@ -274,14 +253,12 @@ def get_parent_email_prompt(lesson_plan):
     3.  **How We Practiced:** Briefly describe a classroom activity.
     4.  **Connection at Home:** Provide one simple, positive conversation starter for parents.
     """
-
 def clear_generated_content():
     keys_to_clear = ["ai_response", "response_title", "student_materials", "differentiation_response", "parent_email"]
     for key in keys_to_clear:
         if key in st.session_state: st.session_state[key] = ""
 
-
-# --- USER INTERFACE (No changes needed here) ---
+# --- USER INTERFACE ---
 st.title("🧠 SEL Integration Agent")
 st.markdown("Your AI-powered instructional coach for Social-Emotional Learning.")
 
@@ -318,18 +295,15 @@ with tab1:
                 try:
                     clear_generated_content()
                     prompt = get_analysis_prompt(lesson_content, standard_input, analyze_competency, analyze_skill)
-                   # --- Replace With This ---
-                   message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
-                st.session_state.ai_response = message.content[0].text
-                st.session_state.response_title = "Evidence-Based SEL Recommendation"
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.ai_response = message.content[0].text
+                    st.session_state.response_title = "Evidence-Based SEL Recommendation"
                 except Exception as e: st.error(f"Error during generation: {e}")
         else: st.warning("Please upload or paste a lesson plan to begin.")
-
-# ... (The rest of the UI code for other tabs remains exactly the same and is omitted for brevity) ...
 
 with tab2:
     st.header("Create a New, SEL-Integrated Lesson")
@@ -355,14 +329,13 @@ with tab2:
                 try:
                     clear_generated_content()
                     prompt = get_creation_prompt(create_grade, create_subject, create_topic, create_competency, create_skill)
-                  # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
-                 st.session_state.ai_response = message.content[0].text
-                 st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
+                    st.session_state.ai_response = message.content[0].text
+                    st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
                 except Exception as e: st.error(f"An error occurred: {e}")
 with tab3:
     st.header("Interactive SEL Scenarios")
@@ -378,12 +351,11 @@ with tab3:
         with st.spinner("Writing a scenario..."):
             try:
                 prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
-                # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                message = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": prompt}]
+                )
                 st.session_state.scenario = message.content[0].text
                 st.session_state.conversation_history = []
             except Exception as e: st.error(f"Could not generate a scenario: {e}")
@@ -400,12 +372,11 @@ message = client.messages.create(
                 with st.spinner("Coach is thinking..."):
                     try:
                         feedback_prompt = get_feedback_prompt(st.session_state.scenario, st.session_state.conversation_history)
-                       # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                        message = client.messages.create(
+                            model="claude-3-5-sonnet-20240620",
+                            max_tokens=1024,
+                            messages=[{"role": "user", "content": feedback_prompt}]
+                        )
                         st.session_state.conversation_history.append({"role": "Coach", "content": message.content[0].text})
                         st.rerun()
                     except Exception as e: st.error(f"Could not get feedback: {e}")
@@ -418,12 +389,11 @@ with tab4:
             with st.spinner("Preparing your training module..."):
                 try:
                     prompt = get_training_prompt(training_competency)
-                   # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        max_tokens=4096,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
                     st.session_state.training_module = message.content[0].text
                     st.session_state.training_scenario = ""
                     st.session_state.training_feedback = ""
@@ -438,12 +408,11 @@ message = client.messages.create(
             with st.spinner("Creating a classroom scenario..."):
                 try:
                     prompt = get_training_scenario_prompt(training_competency, st.session_state.training_module)
-                    # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        max_tokens=1024,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
                     st.session_state.training_scenario = message.content[0].text
                     st.session_state.training_feedback = ""
                 except Exception as e: st.error(f"Could not generate the scenario: {e}")
@@ -455,12 +424,12 @@ message = client.messages.create(
                     with st.spinner("Your coach is reviewing your response..."):
                         try:
                             prompt = get_training_feedback_prompt(training_competency, st.session_state.training_scenario, teacher_response)
-                           # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)                      st.session_state.training_feedback = message.content[0].text
+                            message = client.messages.create(
+                                model="claude-3-5-sonnet-20240620",
+                                max_tokens=1024,
+                                messages=[{"role": "user", "content": prompt}]
+                            )
+                            st.session_state.training_feedback = message.content[0].text
                         except Exception as e: st.error(f"Could not generate feedback: {e}")
                 else: st.warning("Please enter your response above.")
             if st.session_state.training_feedback:
@@ -479,12 +448,11 @@ with tab5:
         with st.spinner("Coming up with some good questions..."):
             try:
                 prompt = get_check_in_prompt(check_in_grade, check_in_tone)
-                # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                message = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=1024,
+                    messages=[{"role": "user", "content": prompt}]
+                )
                 st.session_state.check_in_questions = message.content[0].text
             except Exception as e: st.error(f"Could not generate questions: {e}")
     if st.session_state.check_in_questions:
@@ -499,12 +467,11 @@ with tab6:
             with st.spinner("Finding effective strategies..."):
                 try:
                     prompt = get_strategy_prompt(situation)
-                    # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                    message = client.messages.create(
+                        model="claude-3-5-sonnet-20240620",
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}]
+                    )
                     st.session_state.strategy_response = message.content[0].text
                 except Exception as e: st.error(f"Could not find a strategy: {e}")
         else: st.warning("Please describe the situation to get a strategy.")
@@ -523,12 +490,11 @@ if st.session_state.ai_response:
         with st.spinner("Drafting a parent email..."):
             try:
                 email_prompt = get_parent_email_prompt(st.session_state.ai_response)
-                # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                message = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=2048,
+                    messages=[{"role": "user", "content": email_prompt}]
+                )
                 st.session_state.parent_email = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating the email: {e}")
     if st.session_state.parent_email:
@@ -539,11 +505,11 @@ message = client.messages.create(
         with st.spinner("✍️ Creating student materials..."):
             try:
                 materials_prompt = get_student_materials_prompt(st.session_state.ai_response)
-             message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                message = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": materials_prompt}]
+                )
                 st.session_state.student_materials = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating materials: {e}")
     if st.session_state.student_materials:
@@ -554,12 +520,11 @@ message = client.messages.create(
         with st.spinner("💡 Coming up with strategies for diverse learners..."):
             try:
                 diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
-            # --- Replace With This ---
-message = client.messages.create(
-    model="claude-3-5-sonnet-20240620",  # <--- Make sure there's a comma here
-    max_tokens=4096,
-    messages=[{"role": "user", "content": prompt}]
-)
+                message = client.messages.create(
+                    model="claude-3-5-sonnet-20240620",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": diff_prompt}]
+                )
                 st.session_state.differentiation_response = message.content[0].text
             except Exception as e: st.error(f"An error occurred while generating differentiation strategies: {e}")
     if st.session_state.differentiation_response:
@@ -572,7 +537,6 @@ message = client.messages.create(
     if st.session_state.differentiation_response: full_download_text += "\n\n---\n\n# Differentiation Strategies\n\n" + st.session_state.differentiation_response
     
     if full_download_text.strip():
-        # Using plain text download as the primary, reliable option
         docx_file = create_docx(full_download_text)
         
         dl_col1, dl_col2 = st.columns(2)
