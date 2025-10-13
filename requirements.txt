@@ -1,12 +1,7 @@
-# Force reinstall v1
 streamlit
-python-docx
-markdown2
-python-dotenv
-python-pptx
-PyPDF2
 anthropic
-fpdf2[fonts]
+python-dotenv
+
 
 
 
