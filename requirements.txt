@@ -1,11 +1,12 @@
 streamlit
-anthropic
+anthropic>=0.25.0
 python-docx
 markdown2
-fpdf2
-python-dotenv
+fpdf
 python-pptx
 PyPDF2
+python-dotenv
+
 
 
 
