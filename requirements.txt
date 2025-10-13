@@ -1,6 +1,11 @@
 streamlit
 anthropic
+python-docx
+markdown2
+fpdf2
 python-dotenv
+python-pptx
+PyPDF2
 
 
 
