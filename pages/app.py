@@ -1,4 +1,4 @@
-VERSION 9.6: Final corrected version with Claude 3.5 and new persona
+# VERSION 9.6: Final corrected version with Claude 3.5 and new persona
 import streamlit as st
 import anthropic
 import os
