@@ -1,4 +1,4 @@
-# VERSION 10.0: Updated for Claude Sonnet 4.5
+# VERSION 11.0: Enhanced with Streaming, Memory, Rate Limiting, Usage Tracking & Caching
 import streamlit as st
 import anthropic
 import os
@@ -10,6 +10,9 @@ from fpdf import FPDF
 import json
 from pptx import Presentation
 from PyPDF2 import PdfReader
+from datetime import datetime, timedelta
+from collections import defaultdict
+import time
 
 # This must be the first Streamlit command in your script
 if not st.session_state.get("password_correct", False):
@@ -19,7 +22,6 @@ if not st.session_state.get("password_correct", False):
 try:
     api_key = st.secrets["ANTHROPIC_API_KEY"]
     client = anthropic.Anthropic(api_key=api_key)
-    # Updated to use Claude Sonnet 4.5
     MODEL_NAME = "claude-sonnet-4-5-20250929"
 except KeyError:
     st.error("🔴 ANTHROPIC_API_KEY not found. Please add it to your Streamlit Secrets.")
@@ -36,7 +38,17 @@ SESSION_STATE_DEFAULTS = {
     "ai_response": "", "response_title": "", "student_materials": "",
     "differentiation_response": "", "parent_email": "", "scenario": "",
     "conversation_history": [], "training_module": "", "training_scenario": "",
-    "training_feedback": "", "check_in_questions": "", "strategy_response": ""
+    "training_feedback": "", "check_in_questions": "", "strategy_response": "",
+    # New: Usage tracking
+    "total_tokens_used": 0,
+    "total_api_calls": 0,
+    "session_start_time": datetime.now(),
+    "api_call_times": [],
+    "conversation_memory": [],
+    # New: Streaming control
+    "use_streaming": True,
+    # New: Cost tracking
+    "estimated_cost": 0.0
 }
 for key, default_value in SESSION_STATE_DEFAULTS.items():
     if key not in st.session_state:
@@ -55,6 +67,124 @@ COMPETENCIES = {
 }
 CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
+# API Cost Constants (per million tokens)
+INPUT_COST_PER_MTK = 3.00  # $3 per million input tokens
+OUTPUT_COST_PER_MTK = 15.00  # $15 per million output tokens
+CACHE_WRITE_COST_PER_MTK = 3.75  # $3.75 per million tokens for cache writes
+CACHE_READ_COST_PER_MTK = 0.30  # $0.30 per million tokens for cache reads
+
+# Rate limiting constants
+MAX_CALLS_PER_MINUTE = 50
+MAX_CALLS_PER_HOUR = 1000
+
+# --- RATE LIMITING ---
+class RateLimiter:
+    """Simple rate limiter to prevent API abuse"""
+    
+    @staticmethod
+    def check_rate_limit():
+        """Check if we're within rate limits"""
+        current_time = datetime.now()
+        
+        # Clean old timestamps (older than 1 hour)
+        st.session_state.api_call_times = [
+            t for t in st.session_state.api_call_times 
+            if current_time - t < timedelta(hours=1)
+        ]
+        
+        # Check per-minute limit
+        recent_calls = [
+            t for t in st.session_state.api_call_times 
+            if current_time - t < timedelta(minutes=1)
+        ]
+        if len(recent_calls) >= MAX_CALLS_PER_MINUTE:
+            return False, f"Rate limit exceeded: Maximum {MAX_CALLS_PER_MINUTE} calls per minute"
+        
+        # Check per-hour limit
+        if len(st.session_state.api_call_times) >= MAX_CALLS_PER_HOUR:
+            return False, f"Rate limit exceeded: Maximum {MAX_CALLS_PER_HOUR} calls per hour"
+        
+        return True, "OK"
+    
+    @staticmethod
+    def record_api_call():
+        """Record an API call timestamp"""
+        st.session_state.api_call_times.append(datetime.now())
+        st.session_state.total_api_calls += 1
+
+# --- USAGE TRACKING ---
+class UsageTracker:
+    """Track API usage and costs"""
+    
+    @staticmethod
+    def update_usage(input_tokens, output_tokens, cache_creation_tokens=0, cache_read_tokens=0):
+        """Update token usage and cost estimates"""
+        # Update token counts
+        total_tokens = input_tokens + output_tokens
+        st.session_state.total_tokens_used += total_tokens
+        
+        # Calculate costs
+        input_cost = (input_tokens / 1_000_000) * INPUT_COST_PER_MTK
+        output_cost = (output_tokens / 1_000_000) * OUTPUT_COST_PER_MTK
+        cache_write_cost = (cache_creation_tokens / 1_000_000) * CACHE_WRITE_COST_PER_MTK
+        cache_read_cost = (cache_read_tokens / 1_000_000) * CACHE_READ_COST_PER_MTK
+        
+        total_cost = input_cost + output_cost + cache_write_cost + cache_read_cost
+        st.session_state.estimated_cost += total_cost
+    
+    @staticmethod
+    def get_usage_summary():
+        """Get a formatted usage summary"""
+        session_duration = datetime.now() - st.session_state.session_start_time
+        hours = session_duration.total_seconds() / 3600
+        
+        return {
+            "total_calls": st.session_state.total_api_calls,
+            "total_tokens": st.session_state.total_tokens_used,
+            "estimated_cost": st.session_state.estimated_cost,
+            "session_duration": session_duration,
+            "calls_per_hour": st.session_state.total_api_calls / hours if hours > 0 else 0
+        }
+
+# --- CONVERSATION MEMORY ---
+class ConversationMemory:
+    """Manage conversation context and memory"""
+    
+    @staticmethod
+    def add_to_memory(role, content, metadata=None):
+        """Add a message to conversation memory"""
+        memory_entry = {
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat(),
+            "metadata": metadata or {}
+        }
+        st.session_state.conversation_memory.append(memory_entry)
+        
+        # Keep only last 20 exchanges to manage context window
+        if len(st.session_state.conversation_memory) > 40:  # 20 exchanges = 40 messages
+            st.session_state.conversation_memory = st.session_state.conversation_memory[-40:]
+    
+    @staticmethod
+    def get_relevant_context(current_topic, max_messages=10):
+        """Get relevant conversation history for context"""
+        # For now, return most recent messages
+        # Could be enhanced with semantic search in the future
+        return st.session_state.conversation_memory[-max_messages:]
+    
+    @staticmethod
+    def format_context_for_prompt():
+        """Format memory as context string for prompts"""
+        if not st.session_state.conversation_memory:
+            return ""
+        
+        context_parts = ["Previous conversation context:"]
+        for entry in st.session_state.conversation_memory[-10:]:  # Last 5 exchanges
+            role = entry['role']
+            content = entry['content'][:200]  # Truncate long content
+            context_parts.append(f"{role}: {content}...")
+        
+        return "\n".join(context_parts)
 
 # --- HELPER FUNCTIONS ---
 def read_document(uploaded_file):
@@ -101,26 +231,143 @@ def create_docx(text):
     docx_file.seek(0)
     return docx_file
 
-def call_claude(prompt, max_tokens=4096, temperature=1.0):
+def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=True):
     """
-    Unified function to call Claude API with proper error handling
+    Call Claude API with streaming and display response in real-time
     
     Args:
         prompt: The user prompt to send
         max_tokens: Maximum tokens for response
         temperature: Temperature for response generation (0-1)
+        use_cache: Whether to use prompt caching
+    
+    Returns:
+        str: The complete response text
+    """
+    # Check rate limit
+    can_proceed, message = RateLimiter.check_rate_limit()
+    if not can_proceed:
+        st.error(f"⚠️ {message}. Please wait a moment.")
+        return None
+    
+    try:
+        # Prepare messages with optional caching
+        system_content = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"} if use_cache else None
+            }
+        ]
+        
+        # Create placeholder for streaming
+        response_placeholder = st.empty()
+        full_response = ""
+        
+        # Record API call
+        RateLimiter.record_api_call()
+        
+        # Stream the response
+        with client.messages.stream(
+            model=MODEL_NAME,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            system=system_content,
+            messages=[{"role": "user", "content": prompt}]
+        ) as stream:
+            for text in stream.text_stream:
+                full_response += text
+                response_placeholder.markdown(full_response + "▌")
+        
+        # Final update without cursor
+        response_placeholder.markdown(full_response)
+        
+        # Track usage
+        usage = stream.get_final_message().usage
+        UsageTracker.update_usage(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_creation_tokens=getattr(usage, 'cache_creation_input_tokens', 0),
+            cache_read_tokens=getattr(usage, 'cache_read_input_tokens', 0)
+        )
+        
+        # Add to conversation memory
+        ConversationMemory.add_to_memory("assistant", full_response)
+        
+        return full_response
+        
+    except anthropic.APIError as e:
+        st.error(f"API Error: {e}")
+        return None
+    except Exception as e:
+        st.error(f"Unexpected error: {e}")
+        return None
+
+def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream=None):
+    """
+    Unified function to call Claude API with proper error handling
+    Supports both streaming and non-streaming modes
+    
+    Args:
+        prompt: The user prompt to send
+        max_tokens: Maximum tokens for response
+        temperature: Temperature for response generation (0-1)
+        use_cache: Whether to use prompt caching for the system prompt
+        stream: If True, use streaming; if False, don't; if None, use session default
     
     Returns:
         str: The response text from Claude
     """
+    # Determine if we should stream
+    should_stream = stream if stream is not None else st.session_state.use_streaming
+    
+    if should_stream:
+        return call_claude_streaming(prompt, max_tokens, temperature, use_cache)
+    
+    # Non-streaming mode
+    # Check rate limit
+    can_proceed, message = RateLimiter.check_rate_limit()
+    if not can_proceed:
+        st.error(f"⚠️ {message}. Please wait a moment.")
+        return None
+    
     try:
+        # Prepare system message with optional caching
+        system_content = [
+            {
+                "type": "text",
+                "text": SYSTEM_PROMPT,
+                "cache_control": {"type": "ephemeral"} if use_cache else None
+            }
+        ]
+        
+        # Record API call
+        RateLimiter.record_api_call()
+        
+        # Make API call
         message = client.messages.create(
             model=MODEL_NAME,
             max_tokens=max_tokens,
             temperature=temperature,
+            system=system_content,
             messages=[{"role": "user", "content": prompt}]
         )
-        return message.content[0].text
+        
+        response_text = message.content[0].text
+        
+        # Track usage
+        UsageTracker.update_usage(
+            input_tokens=message.usage.input_tokens,
+            output_tokens=message.usage.output_tokens,
+            cache_creation_tokens=getattr(message.usage, 'cache_creation_input_tokens', 0),
+            cache_read_tokens=getattr(message.usage, 'cache_read_input_tokens', 0)
+        )
+        
+        # Add to conversation memory
+        ConversationMemory.add_to_memory("assistant", response_text)
+        
+        return response_text
+        
     except anthropic.APIError as e:
         st.error(f"API Error: {e}")
         return None
@@ -152,8 +399,12 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     if standard and standard.strip():
         standard_instruction = f"All suggestions must align with this educational standard: '{standard.strip()}'."
 
+    # Add conversation context if available
+    context = ConversationMemory.format_context_for_prompt()
+    context_section = f"\n\n{context}\n" if context else ""
+
     return f"""
-{SYSTEM_PROMPT}
+{context_section}
 
 An educator has submitted this lesson plan for SEL integration analysis:
 
@@ -176,8 +427,11 @@ def get_creation_prompt(grade_level, subject, topic, competency="", skill=""):
     if competency and skill:
         focus_instruction = f"The lesson's primary SEL focus must be **{competency}**, specifically developing **{skill}**."
     
+    context = ConversationMemory.format_context_for_prompt()
+    context_section = f"\n\n{context}\n" if context else ""
+    
     return f"""
-{SYSTEM_PROMPT}
+{context_section}
 
 Create a complete, SEL-integrated lesson plan with these specifications:
 - **Grade Level:** {grade_level}
@@ -198,8 +452,11 @@ Follow an "I Do, We Do, You Do" instructional model.
 """
 
 def get_strategy_prompt(situation):
+    context = ConversationMemory.format_context_for_prompt()
+    context_section = f"\n\n{context}\n" if context else ""
+    
     return f"""
-{SYSTEM_PROMPT}
+{context_section}
 
 A teacher needs an immediate, evidence-based strategy for this situation:
 
@@ -273,8 +530,6 @@ Ask ONE reflective question to deepen the student's thinking. Do not give advice
 
 def get_training_prompt(competency):
     return f"""
-{SYSTEM_PROMPT}
-
 Create a professional development module on **{competency}** grounded in CASEL and evidence-based practices.
 
 **Structure:**
@@ -337,6 +592,63 @@ def clear_generated_content():
         if key in st.session_state: 
             st.session_state[key] = ""
 
+# --- SIDEBAR WITH SETTINGS AND USAGE ---
+with st.sidebar:
+    st.header("⚙️ Settings & Analytics")
+    
+    # Streaming toggle
+    st.session_state.use_streaming = st.checkbox(
+        "Enable Streaming Responses", 
+        value=st.session_state.use_streaming,
+        help="Show responses in real-time as they're generated"
+    )
+    
+    st.markdown("---")
+    
+    # Usage statistics
+    st.subheader("📊 Session Usage")
+    usage = UsageTracker.get_usage_summary()
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("API Calls", usage['total_calls'])
+        st.metric("Tokens Used", f"{usage['total_tokens']:,}")
+    with col2:
+        st.metric("Est. Cost", f"${usage['estimated_cost']:.4f}")
+        st.metric("Calls/Hour", f"{usage['calls_per_hour']:.1f}")
+    
+    # Session duration
+    duration = usage['session_duration']
+    hours = int(duration.total_seconds() // 3600)
+    minutes = int((duration.total_seconds() % 3600) // 60)
+    st.info(f"⏱️ Session: {hours}h {minutes}m")
+    
+    st.markdown("---")
+    
+    # Conversation memory
+    st.subheader("🧠 Conversation Memory")
+    memory_count = len(st.session_state.conversation_memory)
+    st.metric("Messages in Memory", memory_count)
+    
+    if st.button("Clear Memory"):
+        st.session_state.conversation_memory = []
+        st.success("Memory cleared!")
+        st.rerun()
+    
+    st.markdown("---")
+    
+    # Rate limit info
+    st.subheader("⚡ Rate Limits")
+    recent_calls = len([
+        t for t in st.session_state.api_call_times 
+        if datetime.now() - t < timedelta(minutes=1)
+    ])
+    st.progress(recent_calls / MAX_CALLS_PER_MINUTE)
+    st.caption(f"{recent_calls}/{MAX_CALLS_PER_MINUTE} calls in last minute")
+    
+    st.progress(len(st.session_state.api_call_times) / MAX_CALLS_PER_HOUR)
+    st.caption(f"{len(st.session_state.api_call_times)}/{MAX_CALLS_PER_HOUR} calls in last hour")
+
 # --- USER INTERFACE ---
 st.title("🧠 SEL Integration Agent")
 st.markdown("*Powered by Claude Sonnet 4.5 - Your AI instructional coach for Social-Emotional Learning*")
@@ -396,6 +708,14 @@ with tab1:
         if lesson_content:
             with st.spinner("🤖 Analyzing lesson with Claude Sonnet 4.5..."):
                 clear_generated_content()
+                
+                # Add user query to memory
+                ConversationMemory.add_to_memory(
+                    "user", 
+                    f"Analyze lesson plan (competency: {analyze_competency}, skill: {analyze_skill})",
+                    {"type": "lesson_analysis"}
+                )
+                
                 prompt = get_analysis_prompt(
                     lesson_content, 
                     standard_input, 
@@ -449,6 +769,14 @@ with tab2:
         if submitted:
             with st.spinner("🛠️ Building your lesson plan with Claude Sonnet 4.5..."):
                 clear_generated_content()
+                
+                # Add user query to memory
+                ConversationMemory.add_to_memory(
+                    "user",
+                    f"Create lesson: {create_topic} ({create_grade}, {create_subject})",
+                    {"type": "lesson_creation"}
+                )
+                
                 prompt = get_creation_prompt(
                     create_grade, 
                     create_subject, 
@@ -490,7 +818,7 @@ with tab3:
     if st.button("🎬 Generate New Scenario"):
         with st.spinner("Writing a scenario..."):
             prompt = get_scenario_prompt(scenario_competency, scenario_skill, scenario_grade)
-            response = call_claude(prompt, max_tokens=1024)
+            response = call_claude(prompt, max_tokens=1024, stream=False)
             if response:
                 st.session_state.scenario = response
                 st.session_state.conversation_history = []
@@ -519,7 +847,7 @@ with tab3:
                         st.session_state.scenario, 
                         st.session_state.conversation_history
                     )
-                    response = call_claude(feedback_prompt, max_tokens=1024)
+                    response = call_claude(feedback_prompt, max_tokens=1024, stream=False)
                     if response:
                         st.session_state.conversation_history.append({
                             "role": "Coach", 
@@ -563,7 +891,7 @@ with tab4:
                     training_competency, 
                     st.session_state.training_module
                 )
-                response = call_claude(prompt, max_tokens=1024)
+                response = call_claude(prompt, max_tokens=1024, stream=False)
                 if response:
                     st.session_state.training_scenario = response
                     st.session_state.training_feedback = ""
@@ -583,7 +911,7 @@ with tab4:
                             st.session_state.training_scenario, 
                             teacher_response
                         )
-                        response = call_claude(prompt, max_tokens=1024)
+                        response = call_claude(prompt, max_tokens=1024, stream=False)
                         if response:
                             st.session_state.training_feedback = response
                 else: 
@@ -615,7 +943,7 @@ with tab5:
     if st.button("❓ Generate Questions"):
         with st.spinner("Coming up with some good questions..."):
             prompt = get_check_in_prompt(check_in_grade, check_in_tone)
-            response = call_claude(prompt, max_tokens=1024)
+            response = call_claude(prompt, max_tokens=1024, stream=False)
             if response:
                 st.session_state.check_in_questions = response
     
@@ -658,7 +986,7 @@ if st.session_state.ai_response:
     if st.button("Generate Parent Email"):
         with st.spinner("Drafting a parent email..."):
             email_prompt = get_parent_email_prompt(st.session_state.ai_response)
-            response = call_claude(email_prompt, max_tokens=2048)
+            response = call_claude(email_prompt, max_tokens=2048, stream=False)
             if response:
                 st.session_state.parent_email = response
     
@@ -670,7 +998,7 @@ if st.session_state.ai_response:
     if st.button("Generate Materials"):
         with st.spinner("✍️ Creating student materials..."):
             materials_prompt = get_student_materials_prompt(st.session_state.ai_response)
-            response = call_claude(materials_prompt)
+            response = call_claude(materials_prompt, stream=False)
             if response:
                 st.session_state.student_materials = response
     
@@ -682,7 +1010,7 @@ if st.session_state.ai_response:
     if st.button("Generate Differentiation Strategies"):
         with st.spinner("💡 Coming up with strategies for diverse learners..."):
             diff_prompt = get_differentiation_prompt(st.session_state.ai_response)
-            response = call_claude(diff_prompt)
+            response = call_claude(diff_prompt, stream=False)
             if response:
                 st.session_state.differentiation_response = response
     
@@ -722,3 +1050,4 @@ if st.session_state.ai_response:
 # Footer
 st.markdown("---")
 st.markdown("*💡 Powered by Claude Sonnet 4.5 from Anthropic*")
+st.caption(f"Session started: {st.session_state.session_start_time.strftime('%Y-%m-%d %H:%M:%S')}")
