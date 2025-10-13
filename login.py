@@ -16,7 +16,7 @@ def check_password():
     if st.session_state.get("password") == st.secrets["password"]:
             st.session_state["password_correct"] = True
             del st.session_state["password"]
-        else:
+    else:
             st.session_state["password_correct"] = False
 
     if st.session_state.get("password_correct", False):
@@ -33,5 +33,6 @@ def check_password():
 if check_password():
 
     st.switch_page("pages/app.py")
+
 
 
