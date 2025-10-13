@@ -592,62 +592,103 @@ def clear_generated_content():
         if key in st.session_state: 
             st.session_state[key] = ""
 
+# --- ADMIN CHECK FUNCTION ---
+def is_admin():
+    """Check if current user is an admin"""
+    try:
+        # Get admin emails from secrets
+        admin_emails = st.secrets.get("admin_emails", [])
+        
+        # If admin_emails is a string, convert to list
+        if isinstance(admin_emails, str):
+            admin_emails = [email.strip() for email in admin_emails.split(",")]
+        
+        # Get current user's email from session state (set during login)
+        current_user = st.session_state.get("user_email", "")
+        
+        return current_user in admin_emails
+    except:
+        # If no admin_emails configured, default to showing all features
+        return False
+
 # --- SIDEBAR WITH SETTINGS AND USAGE ---
 with st.sidebar:
-    st.header("⚙️ Settings & Analytics")
+    # Check if user is admin
+    user_is_admin = is_admin()
     
-    # Streaming toggle
+    # Show different header based on role
+    if user_is_admin:
+        st.header("⚙️ Admin Dashboard")
+        st.caption("👑 Administrator View")
+    else:
+        st.header("⚙️ Settings")
+    
+    st.markdown("---")
+    
+    # Streaming toggle (visible to all users)
     st.session_state.use_streaming = st.checkbox(
         "Enable Streaming Responses", 
         value=st.session_state.use_streaming,
         help="Show responses in real-time as they're generated"
     )
     
+    # Conversation memory controls (visible to all users)
     st.markdown("---")
-    
-    # Usage statistics
-    st.subheader("📊 Session Usage")
-    usage = UsageTracker.get_usage_summary()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("API Calls", usage['total_calls'])
-        st.metric("Tokens Used", f"{usage['total_tokens']:,}")
-    with col2:
-        st.metric("Est. Cost", f"${usage['estimated_cost']:.4f}")
-        st.metric("Calls/Hour", f"{usage['calls_per_hour']:.1f}")
-    
-    # Session duration
-    duration = usage['session_duration']
-    hours = int(duration.total_seconds() // 3600)
-    minutes = int((duration.total_seconds() % 3600) // 60)
-    st.info(f"⏱️ Session: {hours}h {minutes}m")
-    
-    st.markdown("---")
-    
-    # Conversation memory
     st.subheader("🧠 Conversation Memory")
     memory_count = len(st.session_state.conversation_memory)
-    st.metric("Messages in Memory", memory_count)
+    if user_is_admin:
+        st.metric("Messages in Memory", memory_count)
+    else:
+        st.caption(f"Messages stored: {memory_count}")
     
-    if st.button("Clear Memory"):
+    if st.button("Clear Memory", help="Start fresh with a new conversation"):
         st.session_state.conversation_memory = []
         st.success("Memory cleared!")
         st.rerun()
     
-    st.markdown("---")
-    
-    # Rate limit info
-    st.subheader("⚡ Rate Limits")
-    recent_calls = len([
-        t for t in st.session_state.api_call_times 
-        if datetime.now() - t < timedelta(minutes=1)
-    ])
-    st.progress(recent_calls / MAX_CALLS_PER_MINUTE)
-    st.caption(f"{recent_calls}/{MAX_CALLS_PER_MINUTE} calls in last minute")
-    
-    st.progress(len(st.session_state.api_call_times) / MAX_CALLS_PER_HOUR)
-    st.caption(f"{len(st.session_state.api_call_times)}/{MAX_CALLS_PER_HOUR} calls in last hour")
+    # Admin-only analytics section
+    if user_is_admin:
+        st.markdown("---")
+        st.subheader("📊 Usage Analytics")
+        st.caption("Admin-only information")
+        
+        usage = UsageTracker.get_usage_summary()
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("API Calls", usage['total_calls'])
+            st.metric("Tokens Used", f"{usage['total_tokens']:,}")
+        with col2:
+            st.metric("Est. Cost", f"${usage['estimated_cost']:.4f}")
+            st.metric("Calls/Hour", f"{usage['calls_per_hour']:.1f}")
+        
+        # Session duration
+        duration = usage['session_duration']
+        hours = int(duration.total_seconds() // 3600)
+        minutes = int((duration.total_seconds() % 3600) // 60)
+        st.info(f"⏱️ Session: {hours}h {minutes}m")
+        
+        st.markdown("---")
+        
+        # Rate limit info
+        st.subheader("⚡ Rate Limits")
+        st.caption("Admin-only monitoring")
+        
+        recent_calls = len([
+            t for t in st.session_state.api_call_times 
+            if datetime.now() - t < timedelta(minutes=1)
+        ])
+        st.progress(recent_calls / MAX_CALLS_PER_MINUTE)
+        st.caption(f"{recent_calls}/{MAX_CALLS_PER_MINUTE} calls in last minute")
+        
+        st.progress(len(st.session_state.api_call_times) / MAX_CALLS_PER_HOUR)
+        st.caption(f"{len(st.session_state.api_call_times)}/{MAX_CALLS_PER_HOUR} calls in last hour")
+    else:
+        # Simple message for regular users
+        st.markdown("---")
+        duration = datetime.now() - st.session_state.session_start_time
+        minutes = int(duration.total_seconds() // 60)
+        st.caption(f"⏱️ Session: {minutes} minutes")
 
 # --- USER INTERFACE ---
 st.title("🧠 SEL Integration Agent")
