@@ -1,4 +1,4 @@
-# VERSION 11.0: Enhanced with Streaming, Memory, Rate Limiting, Usage Tracking & Caching
+# VERSION 11.0: Complete with SEL Screener, Streaming, Memory, Rate Limiting, Usage Tracking & Caching
 import streamlit as st
 import anthropic
 import os
@@ -39,16 +39,23 @@ SESSION_STATE_DEFAULTS = {
     "differentiation_response": "", "parent_email": "", "scenario": "",
     "conversation_history": [], "training_module": "", "training_scenario": "",
     "training_feedback": "", "check_in_questions": "", "strategy_response": "",
-    # New: Usage tracking
+    # Usage tracking
     "total_tokens_used": 0,
     "total_api_calls": 0,
     "session_start_time": datetime.now(),
     "api_call_times": [],
     "conversation_memory": [],
-    # New: Streaming control
+    # Streaming control
     "use_streaming": True,
-    # New: Cost tracking
-    "estimated_cost": 0.0
+    # Cost tracking
+    "estimated_cost": 0.0,
+    # SEL Screener
+    "screening_data": {},
+    "screening_grade": "3rd Grade",
+    "screening_num_students": 20,
+    "current_student_index": 0,
+    "screening_complete": False,
+    "screening_interventions": {}
 }
 for key, default_value in SESSION_STATE_DEFAULTS.items():
     if key not in st.session_state:
@@ -68,10 +75,10 @@ COMPETENCIES = {
 CASEL_COMPETENCIES = list(COMPETENCIES.keys())
 
 # API Cost Constants (per million tokens)
-INPUT_COST_PER_MTK = 3.00  # $3 per million input tokens
-OUTPUT_COST_PER_MTK = 15.00  # $15 per million output tokens
-CACHE_WRITE_COST_PER_MTK = 3.75  # $3.75 per million tokens for cache writes
-CACHE_READ_COST_PER_MTK = 0.30  # $0.30 per million tokens for cache reads
+INPUT_COST_PER_MTK = 3.00
+OUTPUT_COST_PER_MTK = 15.00
+CACHE_WRITE_COST_PER_MTK = 3.75
+CACHE_READ_COST_PER_MTK = 0.30
 
 # Rate limiting constants
 MAX_CALLS_PER_MINUTE = 50
@@ -119,7 +126,6 @@ class UsageTracker:
     @staticmethod
     def update_usage(input_tokens, output_tokens, cache_creation_tokens=0, cache_read_tokens=0):
         """Update token usage and cost estimates"""
-        # Update token counts
         total_tokens = input_tokens + output_tokens
         st.session_state.total_tokens_used += total_tokens
         
@@ -162,14 +168,12 @@ class ConversationMemory:
         st.session_state.conversation_memory.append(memory_entry)
         
         # Keep only last 20 exchanges to manage context window
-        if len(st.session_state.conversation_memory) > 40:  # 20 exchanges = 40 messages
+        if len(st.session_state.conversation_memory) > 40:
             st.session_state.conversation_memory = st.session_state.conversation_memory[-40:]
     
     @staticmethod
     def get_relevant_context(current_topic, max_messages=10):
         """Get relevant conversation history for context"""
-        # For now, return most recent messages
-        # Could be enhanced with semantic search in the future
         return st.session_state.conversation_memory[-max_messages:]
     
     @staticmethod
@@ -179,9 +183,9 @@ class ConversationMemory:
             return ""
         
         context_parts = ["Previous conversation context:"]
-        for entry in st.session_state.conversation_memory[-10:]:  # Last 5 exchanges
+        for entry in st.session_state.conversation_memory[-10:]:
             role = entry['role']
-            content = entry['content'][:200]  # Truncate long content
+            content = entry['content'][:200]
             context_parts.append(f"{role}: {content}...")
         
         return "\n".join(context_parts)
@@ -232,26 +236,13 @@ def create_docx(text):
     return docx_file
 
 def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=True):
-    """
-    Call Claude API with streaming and display response in real-time
-    
-    Args:
-        prompt: The user prompt to send
-        max_tokens: Maximum tokens for response
-        temperature: Temperature for response generation (0-1)
-        use_cache: Whether to use prompt caching
-    
-    Returns:
-        str: The complete response text
-    """
-    # Check rate limit
+    """Call Claude API with streaming and display response in real-time"""
     can_proceed, message = RateLimiter.check_rate_limit()
     if not can_proceed:
         st.error(f"⚠️ {message}. Please wait a moment.")
         return None
     
     try:
-        # Prepare messages with optional caching
         system_content = [
             {
                 "type": "text",
@@ -260,14 +251,11 @@ def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=Tr
             }
         ]
         
-        # Create placeholder for streaming
         response_placeholder = st.empty()
         full_response = ""
         
-        # Record API call
         RateLimiter.record_api_call()
         
-        # Stream the response
         with client.messages.stream(
             model=MODEL_NAME,
             max_tokens=max_tokens,
@@ -279,10 +267,8 @@ def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=Tr
                 full_response += text
                 response_placeholder.markdown(full_response + "▌")
         
-        # Final update without cursor
         response_placeholder.markdown(full_response)
         
-        # Track usage
         usage = stream.get_final_message().usage
         UsageTracker.update_usage(
             input_tokens=usage.input_tokens,
@@ -291,7 +277,6 @@ def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=Tr
             cache_read_tokens=getattr(usage, 'cache_read_input_tokens', 0)
         )
         
-        # Add to conversation memory
         ConversationMemory.add_to_memory("assistant", full_response)
         
         return full_response
@@ -304,35 +289,18 @@ def call_claude_streaming(prompt, max_tokens=4096, temperature=1.0, use_cache=Tr
         return None
 
 def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream=None):
-    """
-    Unified function to call Claude API with proper error handling
-    Supports both streaming and non-streaming modes
-    
-    Args:
-        prompt: The user prompt to send
-        max_tokens: Maximum tokens for response
-        temperature: Temperature for response generation (0-1)
-        use_cache: Whether to use prompt caching for the system prompt
-        stream: If True, use streaming; if False, don't; if None, use session default
-    
-    Returns:
-        str: The response text from Claude
-    """
-    # Determine if we should stream
+    """Unified function to call Claude API with proper error handling"""
     should_stream = stream if stream is not None else st.session_state.use_streaming
     
     if should_stream:
         return call_claude_streaming(prompt, max_tokens, temperature, use_cache)
     
-    # Non-streaming mode
-    # Check rate limit
     can_proceed, message = RateLimiter.check_rate_limit()
     if not can_proceed:
         st.error(f"⚠️ {message}. Please wait a moment.")
         return None
     
     try:
-        # Prepare system message with optional caching
         system_content = [
             {
                 "type": "text",
@@ -341,10 +309,8 @@ def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream
             }
         ]
         
-        # Record API call
         RateLimiter.record_api_call()
         
-        # Make API call
         message = client.messages.create(
             model=MODEL_NAME,
             max_tokens=max_tokens,
@@ -355,7 +321,6 @@ def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream
         
         response_text = message.content[0].text
         
-        # Track usage
         UsageTracker.update_usage(
             input_tokens=message.usage.input_tokens,
             output_tokens=message.usage.output_tokens,
@@ -363,7 +328,6 @@ def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream
             cache_read_tokens=getattr(message.usage, 'cache_read_input_tokens', 0)
         )
         
-        # Add to conversation memory
         ConversationMemory.add_to_memory("assistant", response_text)
         
         return response_text
@@ -399,7 +363,6 @@ def get_analysis_prompt(lesson_plan_text, standard="", competency="", skill=""):
     if standard and standard.strip():
         standard_instruction = f"All suggestions must align with this educational standard: '{standard.strip()}'."
 
-    # Add conversation context if available
     context = ConversationMemory.format_context_for_prompt()
     context_section = f"\n\n{context}\n" if context else ""
 
@@ -592,31 +555,236 @@ def clear_generated_content():
         if key in st.session_state: 
             st.session_state[key] = ""
 
+# --- SEL SCREENER FUNCTIONS ---
+
+def get_screener_questions(grade_level):
+    """Get age-appropriate screener questions based on grade level"""
+    grade_num = int(''.join(filter(str.isdigit, grade_level))) if any(c.isdigit() for c in grade_level) else 0
+    
+    if grade_level == "Kindergarten" or grade_num <= 1:
+        return [
+            {"emoji": "😊", "text": "Names feelings (happy, sad, mad, etc.)", "competency": "Self-Awareness"},
+            {"emoji": "🎯", "text": "Calms down with help when upset", "competency": "Self-Management"},
+            {"emoji": "👥", "text": "Is kind to friends", "competency": "Social Awareness"},
+            {"emoji": "🤝", "text": "Takes turns and shares", "competency": "Relationship Skills"},
+            {"emoji": "💭", "text": "Follows class rules", "competency": "Decision-Making"}
+        ]
+    elif grade_num <= 2:
+        return [
+            {"emoji": "😊", "text": "Recognizes and talks about feelings", "competency": "Self-Awareness"},
+            {"emoji": "🎯", "text": "Uses calming strategies when upset", "competency": "Self-Management"},
+            {"emoji": "👥", "text": "Shows care for others' feelings", "competency": "Social Awareness"},
+            {"emoji": "🤝", "text": "Works well in groups", "competency": "Relationship Skills"},
+            {"emoji": "💭", "text": "Thinks before acting", "competency": "Decision-Making"}
+        ]
+    else:
+        return [
+            {"emoji": "😊", "text": "Recognizes own emotions and what causes them", "competency": "Self-Awareness"},
+            {"emoji": "🎯", "text": "Manages frustration and stays calm", "competency": "Self-Management"},
+            {"emoji": "👥", "text": "Shows empathy and respects differences", "competency": "Social Awareness"},
+            {"emoji": "🤝", "text": "Communicates and solves conflicts peacefully", "competency": "Relationship Skills"},
+            {"emoji": "💭", "text": "Makes responsible decisions", "competency": "Decision-Making"}
+        ]
+
+def calculate_screening_results():
+    """Calculate screening results and risk levels"""
+    if not st.session_state.screening_data:
+        return None
+    
+    results = {
+        "total_students": len(st.session_state.screening_data),
+        "students": {},
+        "class_averages": {},
+        "risk_levels": {"priority": [], "monitor": [], "on_track": []}
+    }
+    
+    for student_id, scores in st.session_state.screening_data.items():
+        avg_score = sum(scores.values()) / len(scores)
+        
+        student_results = {
+            "scores": scores,
+            "average": avg_score,
+            "risk_level": "priority" if avg_score < 2.0 else ("monitor" if avg_score < 2.5 else "on_track")
+        }
+        
+        results["students"][student_id] = student_results
+        results["risk_levels"][student_results["risk_level"]].append(student_id)
+    
+    competencies = ["Self-Awareness", "Self-Management", "Social Awareness", "Relationship Skills", "Decision-Making"]
+    for i, comp in enumerate(competencies):
+        scores_for_comp = [scores[i] for scores in st.session_state.screening_data.values()]
+        results["class_averages"][comp] = sum(scores_for_comp) / len(scores_for_comp)
+    
+    return results
+
+def get_intervention_prompt(student_id, student_results, grade_level):
+    """Generate prompt for AI intervention recommendations"""
+    scores = student_results["scores"]
+    avg = student_results["average"]
+    
+    competencies = ["Self-Awareness", "Self-Management", "Social Awareness", "Relationship Skills", "Decision-Making"]
+    
+    concerns = []
+    strengths = []
+    for i, comp in enumerate(competencies):
+        if scores[i] < 2.5:
+            concerns.append(f"{comp} (score: {scores[i]}/4)")
+        elif scores[i] >= 3.0:
+            strengths.append(comp)
+    
+    return f"""
+You are an SEL intervention specialist. A {grade_level} student needs support.
+
+**Assessment Results:**
+- Overall Average: {avg:.1f}/4.0
+- Risk Level: {student_results["risk_level"].title()}
+
+**Areas of Concern:**
+{chr(10).join(f"- {c}" for c in concerns) if concerns else "None - student is on track"}
+
+**Strengths:**
+{chr(10).join(f"- {s}" for s in strengths) if strengths else "Developing in all areas"}
+
+**Your Task:**
+Provide 3-4 specific, actionable Tier 2 interventions for this student. Format as:
+
+**Primary Focus:** [The most critical area to address]
+
+**Recommended Interventions:**
+
+1. **[Intervention Name]**
+   - What: [Brief description]
+   - How: [2-3 concrete steps]
+   - Timeline: [How often/how long]
+
+2. **[Intervention Name]**
+   - What: [Brief description]
+   - How: [2-3 concrete steps]
+   - Timeline: [How often/how long]
+
+3. **[Intervention Name]**
+   - What: [Brief description]
+   - How: [2-3 concrete steps]
+   - Timeline: [How often/how long]
+
+**Progress Monitoring:**
+- Check progress in: [timeframe]
+- Look for: [specific behavioral changes]
+
+**Family Communication:**
+[2-3 sentence summary to share with parents about what we're working on]
+
+Keep it practical, evidence-based, and feasible for a busy classroom teacher.
+"""
+
+def get_class_strategies_prompt(results, grade_level):
+    """Generate prompt for whole-class strategies"""
+    class_avgs = results["class_averages"]
+    
+    lowest_comp = min(class_avgs, key=class_avgs.get)
+    lowest_score = class_avgs[lowest_comp]
+    
+    on_track_pct = (len(results["risk_levels"]["on_track"]) / results["total_students"]) * 100
+    
+    return f"""
+You are an SEL curriculum specialist. Analyze this {grade_level} class screening data:
+
+**Class Overview:**
+- Total Students: {results["total_students"]}
+- On Track: {len(results["risk_levels"]["on_track"])} students ({on_track_pct:.0f}%)
+- Need Monitoring: {len(results["risk_levels"]["monitor"])} students
+- Priority Support: {len(results["risk_levels"]["priority"])} students
+
+**Class Competency Averages:**
+{chr(10).join(f"- {comp}: {score:.1f}/4.0" for comp, score in class_avgs.items())}
+
+**Lowest Area:** {lowest_comp} ({lowest_score:.1f}/4.0)
+
+**Your Task:**
+Provide whole-class strategies to strengthen the lowest area. Format as:
+
+**Class Need:** {lowest_comp}
+
+**Whole-Class Strategies:**
+
+1. **[Strategy Name]**
+   - What: [Brief description]
+   - When: [How to incorporate into daily schedule]
+   - Materials: [What's needed]
+
+2. **[Strategy Name]**
+   - What: [Brief description]
+   - When: [How to incorporate into daily schedule]
+   - Materials: [What's needed]
+
+3. **[Strategy Name]**
+   - What: [Brief description]
+   - When: [How to incorporate into daily schedule]
+   - Materials: [What's needed]
+
+**Quick Wins:** [2-3 simple things teacher can start tomorrow]
+
+**Resources:** [Specific curricula, books, or websites that align with this focus]
+
+Keep strategies evidence-based, practical, and engaging for {grade_level} students.
+"""
+
+def save_screening_data():
+    """Prepare screening data for download"""
+    if not st.session_state.screening_data:
+        return None
+    
+    results = calculate_screening_results()
+    if not results:
+        return None
+    
+    data = {
+        "date": datetime.now().isoformat(),
+        "grade": st.session_state.screening_grade,
+        "num_students": st.session_state.screening_num_students,
+        "screening_data": st.session_state.screening_data,
+        "results": results,
+        "interventions": st.session_state.screening_interventions
+    }
+    
+    return json.dumps(data, indent=2)
+
+def load_screening_data(uploaded_file):
+    """Load screening data from uploaded file"""
+    try:
+        data = json.loads(uploaded_file.read().decode('utf-8'))
+        
+        st.session_state.screening_grade = data.get("grade", "3rd Grade")
+        st.session_state.screening_num_students = data.get("num_students", 20)
+        st.session_state.screening_data = data.get("screening_data", {})
+        st.session_state.screening_interventions = data.get("interventions", {})
+        st.session_state.screening_complete = bool(st.session_state.screening_data)
+        st.session_state.current_student_index = len(st.session_state.screening_data)
+        
+        return True
+    except Exception as e:
+        st.error(f"Error loading screening data: {e}")
+        return False
+
 # --- ADMIN CHECK FUNCTION ---
 def is_admin():
     """Check if current user is an admin"""
     try:
-        # Get admin emails from secrets
         admin_emails = st.secrets.get("admin_emails", [])
         
-        # If admin_emails is a string, convert to list
         if isinstance(admin_emails, str):
             admin_emails = [email.strip() for email in admin_emails.split(",")]
         
-        # Get current user's email from session state (set during login)
         current_user = st.session_state.get("user_email", "")
         
         return current_user in admin_emails
     except:
-        # If no admin_emails configured, default to showing all features
         return False
 
 # --- SIDEBAR WITH SETTINGS AND USAGE ---
 with st.sidebar:
-    # Check if user is admin
     user_is_admin = is_admin()
     
-    # Show different header based on role
     if user_is_admin:
         st.header("⚙️ Admin Dashboard")
         st.caption("👑 Administrator View")
@@ -625,14 +793,12 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # Streaming toggle (visible to all users)
     st.session_state.use_streaming = st.checkbox(
         "Enable Streaming Responses", 
         value=st.session_state.use_streaming,
         help="Show responses in real-time as they're generated"
     )
     
-    # Conversation memory controls (visible to all users)
     st.markdown("---")
     st.subheader("🧠 Conversation Memory")
     memory_count = len(st.session_state.conversation_memory)
@@ -646,7 +812,6 @@ with st.sidebar:
         st.success("Memory cleared!")
         st.rerun()
     
-    # Admin-only analytics section
     if user_is_admin:
         st.markdown("---")
         st.subheader("📊 Usage Analytics")
@@ -662,7 +827,6 @@ with st.sidebar:
             st.metric("Est. Cost", f"${usage['estimated_cost']:.4f}")
             st.metric("Calls/Hour", f"{usage['calls_per_hour']:.1f}")
         
-        # Session duration
         duration = usage['session_duration']
         hours = int(duration.total_seconds() // 3600)
         minutes = int((duration.total_seconds() % 3600) // 60)
@@ -670,7 +834,6 @@ with st.sidebar:
         
         st.markdown("---")
         
-        # Rate limit info
         st.subheader("⚡ Rate Limits")
         st.caption("Admin-only monitoring")
         
@@ -684,7 +847,6 @@ with st.sidebar:
         st.progress(len(st.session_state.api_call_times) / MAX_CALLS_PER_HOUR)
         st.caption(f"{len(st.session_state.api_call_times)}/{MAX_CALLS_PER_HOUR} calls in last hour")
     else:
-        # Simple message for regular users
         st.markdown("---")
         duration = datetime.now() - st.session_state.session_start_time
         minutes = int(duration.total_seconds() // 60)
@@ -696,9 +858,10 @@ st.markdown("*Powered by Claude Sonnet 4.5 - Your AI instructional coach for Soc
 
 tab_list = [
     "Analyze Existing Lesson", "Create New Lesson", "🧑‍🎓 Student Scenarios", 
-    "👩‍🏫 Teacher SEL Training", "☀️ Morning Check-in", "🆘 Strategy Finder"
+    "👩‍🏫 Teacher SEL Training", "☀️ Morning Check-in", "🆘 Strategy Finder",
+    "📊 SEL Screener"
 ]
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(tab_list)
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_list)
 
 with tab1:
     st.header("Analyze an Existing Lesson Plan")
@@ -750,7 +913,6 @@ with tab1:
             with st.spinner("🤖 Analyzing lesson with Claude Sonnet 4.5..."):
                 clear_generated_content()
                 
-                # Add user query to memory
                 ConversationMemory.add_to_memory(
                     "user", 
                     f"Analyze lesson plan (competency: {analyze_competency}, skill: {analyze_skill})",
@@ -811,7 +973,6 @@ with tab2:
             with st.spinner("🛠️ Building your lesson plan with Claude Sonnet 4.5..."):
                 clear_generated_content()
                 
-                # Add user query to memory
                 ConversationMemory.add_to_memory(
                     "user",
                     f"Create lesson: {create_topic} ({create_grade}, {create_subject})",
@@ -1015,6 +1176,245 @@ with tab6:
     if st.session_state.strategy_response:
         st.markdown("---")
         st.markdown(st.session_state.strategy_response)
+
+with tab7:
+    st.header("📊 Quick SEL Screener")
+    st.info("Screen your class in under an hour. Identify students who need support and get AI-powered intervention plans.")
+    
+    col_up, col_down = st.columns(2)
+    with col_up:
+        uploaded_file = st.file_uploader("📁 Load Previous Screening", type=["json"], key="screener_upload")
+        if uploaded_file:
+            if load_screening_data(uploaded_file):
+                st.success("✓ Screening data loaded successfully!")
+                st.rerun()
+    
+    with col_down:
+        if st.session_state.screening_complete:
+            screening_json = save_screening_data()
+            if screening_json:
+                st.download_button(
+                    label="💾 Save Screening Data",
+                    data=screening_json,
+                    file_name=f"sel_screening_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                    mime="application/json"
+                )
+    
+    st.markdown("---")
+    
+    if not st.session_state.screening_complete:
+        st.subheader("📝 Set Up Your Screening")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.session_state.screening_grade = st.selectbox(
+                "Grade Level",
+                options=GRADE_LEVELS[:6],
+                index=GRADE_LEVELS[:6].index(st.session_state.screening_grade) if st.session_state.screening_grade in GRADE_LEVELS[:6] else 3,
+                key="screener_grade_select"
+            )
+        
+        with col2:
+            st.session_state.screening_num_students = st.number_input(
+                "Number of Students",
+                min_value=1,
+                max_value=35,
+                value=st.session_state.screening_num_students,
+                key="screener_num_students"
+            )
+        
+        if st.button("🚀 Start Screening", type="primary"):
+            st.session_state.screening_data = {}
+            st.session_state.current_student_index = 0
+            st.session_state.screening_complete = False
+            st.rerun()
+        
+        if st.session_state.current_student_index < st.session_state.screening_num_students:
+            st.markdown("---")
+            st.subheader(f"Student {st.session_state.current_student_index + 1} of {st.session_state.screening_num_students}")
+            
+            student_id = st.text_input(
+                "Student ID or Initials (optional)",
+                value=f"Student {st.session_state.current_student_index + 1}",
+                key=f"student_id_{st.session_state.current_student_index}"
+            )
+            
+            st.markdown("**Rate what you observe** (1 = Concern, 2 = Developing, 3 = On Track, 4 = Strong)")
+            
+            questions = get_screener_questions(st.session_state.screening_grade)
+            
+            ratings = []
+            for i, q in enumerate(questions):
+                st.markdown(f"**{q['emoji']} {q['text']}**")
+                rating = st.radio(
+                    f"Rating for question {i+1}",
+                    options=[1, 2, 3, 4],
+                    format_func=lambda x: ["1 - Concern", "2 - Developing", "3 - On Track", "4 - Strong"][x-1],
+                    horizontal=True,
+                    key=f"rating_{st.session_state.current_student_index}_{i}",
+                    label_visibility="collapsed"
+                )
+                ratings.append(rating)
+                st.markdown("")
+            
+            col_prev, col_next = st.columns(2)
+            
+            with col_prev:
+                if st.session_state.current_student_index > 0:
+                    if st.button("⬅️ Previous Student"):
+                        st.session_state.current_student_index -= 1
+                        st.rerun()
+            
+            with col_next:
+                if st.button("Next Student ➡️" if st.session_state.current_student_index < st.session_state.screening_num_students - 1 else "✅ Complete Screening", type="primary"):
+                    st.session_state.screening_data[student_id] = ratings
+                    
+                    if st.session_state.current_student_index < st.session_state.screening_num_students - 1:
+                        st.session_state.current_student_index += 1
+                        st.rerun()
+                    else:
+                        st.session_state.screening_complete = True
+                        st.rerun()
+    
+    else:
+        results = calculate_screening_results()
+        
+        if results:
+            st.success("🎉 Screening Complete!")
+            
+            st.markdown("---")
+            st.subheader("📊 Class Overview")
+            
+            total = results["total_students"]
+            on_track_pct = (len(results["risk_levels"]["on_track"]) / total) * 100
+            monitor_pct = (len(results["risk_levels"]["monitor"]) / total) * 100
+            priority_pct = (len(results["risk_levels"]["priority"]) / total) * 100
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("🟢 On Track", f"{len(results['risk_levels']['on_track'])} ({on_track_pct:.0f}%)")
+            with col2:
+                st.metric("🟡 Monitor", f"{len(results['risk_levels']['monitor'])} ({monitor_pct:.0f}%)")
+            with col3:
+                st.metric("🔴 Priority", f"{len(results['risk_levels']['priority'])} ({priority_pct:.0f}%)")
+            
+            st.markdown("---")
+            st.subheader("📈 Class Competency Breakdown")
+            
+            for comp, avg in results["class_averages"].items():
+                pct = (avg / 4.0) * 100
+                color = "🟢" if avg >= 3.0 else ("🟡" if avg >= 2.5 else "🔴")
+                st.markdown(f"**{color} {comp}**: {avg:.1f}/4.0")
+                st.progress(pct / 100)
+                st.markdown("")
+            
+            lowest_comp = min(results["class_averages"], key=results["class_averages"].get)
+            st.info(f"**Class Focus Area:** {lowest_comp} - Consider whole-class intervention")
+            
+            if st.button("💡 Get Whole-Class Strategies"):
+                with st.spinner("Generating personalized class strategies..."):
+                    prompt = get_class_strategies_prompt(results, st.session_state.screening_grade)
+                    response = call_claude(prompt, max_tokens=3000, stream=False)
+                    if response:
+                        st.session_state.screening_interventions["class"] = response
+                        st.rerun()
+            
+            if "class" in st.session_state.screening_interventions:
+                st.markdown("---")
+                st.markdown(st.session_state.screening_interventions["class"])
+            
+            st.markdown("---")
+            st.subheader("👥 Students Needing Support")
+            
+            if results["risk_levels"]["priority"]:
+                st.markdown("### 🔴 Priority Support (Multiple Concerns)")
+                for student_id in results["risk_levels"]["priority"]:
+                    with st.expander(f"**{student_id}** - Average: {results['students'][student_id]['average']:.1f}/4.0"):
+                        student_results = results["students"][student_id]
+                        
+                        competencies = ["Self-Awareness", "Self-Management", "Social Awareness", "Relationship Skills", "Decision-Making"]
+                        for i, comp in enumerate(competencies):
+                            score = student_results["scores"][i]
+                            color = "🟢" if score >= 3.0 else ("🟡" if score >= 2.5 else "🔴")
+                            st.markdown(f"{color} **{comp}**: {score}/4")
+                        
+                        if st.button(f"🎯 Generate Intervention Plan", key=f"intervention_{student_id}"):
+                            with st.spinner("Creating personalized intervention plan..."):
+                                prompt = get_intervention_prompt(student_id, student_results, st.session_state.screening_grade)
+                                response = call_claude(prompt, max_tokens=2500, stream=False)
+                                if response:
+                                    st.session_state.screening_interventions[student_id] = response
+                                    st.rerun()
+                        
+                        if student_id in st.session_state.screening_interventions:
+                            st.markdown("---")
+                            st.markdown(st.session_state.screening_interventions[student_id])
+            
+            if results["risk_levels"]["monitor"]:
+                st.markdown("### 🟡 Monitor (1-2 Concerns)")
+                for student_id in results["risk_levels"]["monitor"]:
+                    with st.expander(f"**{student_id}** - Average: {results['students'][student_id]['average']:.1f}/4.0"):
+                        student_results = results["students"][student_id]
+                        
+                        competencies = ["Self-Awareness", "Self-Management", "Social Awareness", "Relationship Skills", "Decision-Making"]
+                        for i, comp in enumerate(competencies):
+                            score = student_results["scores"][i]
+                            color = "🟢" if score >= 3.0 else ("🟡" if score >= 2.5 else "🔴")
+                            st.markdown(f"{color} **{comp}**: {score}/4")
+                        
+                        if st.button(f"🎯 Generate Intervention Plan", key=f"intervention_{student_id}"):
+                            with st.spinner("Creating personalized intervention plan..."):
+                                prompt = get_intervention_prompt(student_id, student_results, st.session_state.screening_grade)
+                                response = call_claude(prompt, max_tokens=2500, stream=False)
+                                if response:
+                                    st.session_state.screening_interventions[student_id] = response
+                                    st.rerun()
+                        
+                        if student_id in st.session_state.screening_interventions:
+                            st.markdown("---")
+                            st.markdown(st.session_state.screening_interventions[student_id])
+            
+            if results["risk_levels"]["on_track"]:
+                with st.expander(f"🟢 Students On Track ({len(results['risk_levels']['on_track'])} students)"):
+                    for student_id in results["risk_levels"]["on_track"]:
+                        st.markdown(f"✓ **{student_id}** - Average: {results['students'][student_id]['average']:.1f}/4.0")
+            
+            st.markdown("---")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🔄 Start New Screening"):
+                    st.session_state.screening_data = {}
+                    st.session_state.screening_interventions = {}
+                    st.session_state.current_student_index = 0
+                    st.session_state.screening_complete = False
+                    st.rerun()
+            
+            with col2:
+                report_text = f"""SEL SCREENING REPORT
+Grade: {st.session_state.screening_grade}
+Date: {datetime.now().strftime('%Y-%m-%d')}
+
+CLASS OVERVIEW
+Total Students: {total}
+On Track: {len(results['risk_levels']['on_track'])} ({on_track_pct:.0f}%)
+Monitor: {len(results['risk_levels']['monitor'])} ({monitor_pct:.0f}%)
+Priority: {len(results['risk_levels']['priority'])} ({priority_pct:.0f}%)
+
+COMPETENCY AVERAGES
+{chr(10).join(f"{comp}: {avg:.1f}/4.0" for comp, avg in results['class_averages'].items())}
+
+STUDENTS NEEDING SUPPORT
+Priority: {', '.join(results['risk_levels']['priority']) if results['risk_levels']['priority'] else 'None'}
+Monitor: {', '.join(results['risk_levels']['monitor']) if results['risk_levels']['monitor'] else 'None'}
+"""
+                
+                st.download_button(
+                    label="📄 Download Report (TXT)",
+                    data=report_text,
+                    file_name=f"sel_screening_report_{datetime.now().strftime('%Y%m%d')}.txt",
+                    mime="text/plain"
+                )
 
 # --- DISPLAY OUTPUT AREA FOR TABS 1 AND 2 ---
 if st.session_state.ai_response:
