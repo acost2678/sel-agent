@@ -1154,8 +1154,8 @@ with tab7:
                     st.session_state.current_student_index = 0
                     st.session_state.screening_complete = False
                     st.rerun()
-with col2:
-                pass  # This column is now empty
+            with col2:
+            pass  # This column is now empty
             
             # Enhanced download section
             st.markdown("---")
