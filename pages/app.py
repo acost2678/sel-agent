@@ -600,7 +600,7 @@ def calculate_screening_results():
         "risk_levels": {"priority": [], "monitor": [], "on_track": []}
     }
     for student_id, scores in st.session_state.screening_data.items():
-        avg_score = sum(scores.values()) / len(scores)
+        avg_score = sum(scores) / len(scores)
         student_results = {
             "scores": scores,
             "average": avg_score,
