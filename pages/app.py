@@ -1155,7 +1155,7 @@ with tab7:
                     st.session_state.screening_complete = False
                     st.rerun()
             with col2:
-            pass  # This column is now empty
+                pass  # This column is now empty
             
             # Enhanced download section
             st.markdown("---")
