@@ -1154,25 +1154,66 @@ with tab7:
                     st.session_state.current_student_index = 0
                     st.session_state.screening_complete = False
                     st.rerun()
-            with col2:
-                report_text = f"""SEL SCREENING REPORT
-Grade: {st.session_state.screening_grade}
-Date: {datetime.now().strftime('%Y-%m-%d')}
-
-CLASS OVERVIEW
-Total Students: {total}
-On Track: {len(results['risk_levels']['on_track'])} ({on_track_pct:.0f}%)
-Monitor: {len(results['risk_levels']['monitor'])} ({monitor_pct:.0f}%)
-Priority: {len(results['risk_levels']['priority'])} ({priority_pct:.0f}%)
-
-COMPETENCY AVERAGES
-{chr(10).join(f"{comp}: {avg:.1f}/4.0" for comp, avg in results['class_averages'].items())}
-
-STUDENTS NEEDING SUPPORT
-Priority: {', '.join(results['risk_levels']['priority']) if results['risk_levels']['priority'] else 'None'}
-Monitor: {', '.join(results['risk_levels']['monitor']) if results['risk_levels']['monitor'] else 'None'}
-"""
-                st.download_button(label="📄 Download Report (TXT)", data=report_text, file_name=f"sel_screening_report_{datetime.now().strftime('%Y%m%d')}.txt", mime="text/plain")
+with col2:
+                pass  # This column is now empty
+            
+            # Enhanced download section
+            st.markdown("---")
+            st.subheader("📥 Download Assessment Reports")
+            
+            col_dl1, col_dl2, col_dl3 = st.columns(3)
+            
+            with col_dl1:
+                # Save raw data for future loading
+                screening_json = save_screening_data()
+                if screening_json:
+                    st.download_button(
+                        label="💾 Save Data (Reload Later)",
+                        data=screening_json,
+                        file_name=f"sel_screening_data_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                        mime="application/json",
+                        help="Save this file to reload your screening data later"
+                    )
+            
+            with col_dl2:
+                # Comprehensive report as text
+                full_report = create_comprehensive_report()
+                if full_report:
+                    st.download_button(
+                        label="📄 Full Report (Text)",
+                        data=full_report,
+                        file_name=f"sel_screening_report_{datetime.now().strftime('%Y%m%d')}.txt",
+                        mime="text/plain",
+                        help="Complete report with all intervention plans"
+                    )
+            
+            with col_dl3:
+                # Word document version
+                full_report = create_comprehensive_report()
+                if full_report:
+                    docx_report = create_docx(full_report)
+                    st.download_button(
+                        label="📝 Full Report (Word)",
+                        data=docx_report,
+                        file_name=f"sel_screening_report_{datetime.now().strftime('%Y%m%d')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        help="Professional Word document with all assessments"
+                    )
+            
+            # Show what's included
+            with st.expander("ℹ️ What's included in downloads"):
+                st.markdown("""
+                **Data File (.json):** 
+                - All screening scores
+                - Can be reloaded for future editing
+                
+                **Full Report (.txt/.docx):**
+                - Class overview and statistics
+                - Competency breakdowns
+                - Whole-class strategies (if generated)
+                - Individual intervention plans (if generated)
+                - Student groupings by support level
+                """)
 
 # --- DISPLAY OUTPUT AREA FOR TABS 1 AND 2 ---
 if st.session_state.ai_response:
