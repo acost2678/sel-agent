@@ -248,7 +248,7 @@ def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream
         st.error(f"Unexpected error: {e}")
         return None
     def create_comprehensive_report():
-    """Create a full screening report with all interventions"""
+        """Create a full screening report with all interventions"""
     results = calculate_screening_results()
     if not results:
         return None
