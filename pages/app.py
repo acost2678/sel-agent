@@ -247,7 +247,103 @@ def call_claude(prompt, max_tokens=4096, temperature=1.0, use_cache=True, stream
     except Exception as e:
         st.error(f"Unexpected error: {e}")
         return None
-
+    def create_comprehensive_report():
+    """Create a full screening report with all interventions"""
+    results = calculate_screening_results()
+    if not results:
+        return None
+    
+    # Build the report content
+    report_parts = []
+    
+    # Header
+    report_parts.append(f"# SEL SCREENING REPORT")
+    report_parts.append(f"**Grade:** {st.session_state.screening_grade}")
+    report_parts.append(f"**Date:** {datetime.now().strftime('%B %d, %Y')}")
+    report_parts.append(f"**Total Students:** {results['total_students']}")
+    report_parts.append("\n---\n")
+    
+    # Class Overview
+    report_parts.append("## CLASS OVERVIEW")
+    on_track_pct = (len(results['risk_levels']['on_track']) / results['total_students']) * 100
+    monitor_pct = (len(results['risk_levels']['monitor']) / results['total_students']) * 100
+    priority_pct = (len(results['risk_levels']['priority']) / results['total_students']) * 100
+    
+    report_parts.append(f"- **On Track:** {len(results['risk_levels']['on_track'])} students ({on_track_pct:.0f}%)")
+    report_parts.append(f"- **Monitor:** {len(results['risk_levels']['monitor'])} students ({monitor_pct:.0f}%)")
+    report_parts.append(f"- **Priority Support:** {len(results['risk_levels']['priority'])} students ({priority_pct:.0f}%)")
+    report_parts.append("")
+    
+    # Competency Averages
+    report_parts.append("## COMPETENCY AVERAGES")
+    for comp, avg in results['class_averages'].items():
+        status = "✓ Strong" if avg >= 3.0 else ("⚠ Developing" if avg >= 2.5 else "⚡ Needs Focus")
+        report_parts.append(f"- **{comp}:** {avg:.1f}/4.0 ({status})")
+    report_parts.append("\n---\n")
+    
+    # Class-wide strategies if available
+    if "class" in st.session_state.screening_interventions:
+        report_parts.append("## WHOLE-CLASS STRATEGIES")
+        report_parts.append(st.session_state.screening_interventions["class"])
+        report_parts.append("\n---\n")
+    
+    # Individual Student Plans
+    if results["risk_levels"]["priority"] or results["risk_levels"]["monitor"]:
+        report_parts.append("## INDIVIDUAL STUDENT INTERVENTION PLANS")
+        
+        # Priority students
+        if results["risk_levels"]["priority"]:
+            report_parts.append("\n### Priority Support Students")
+            for student_id in results["risk_levels"]["priority"]:
+                student_data = results["students"][student_id]
+                report_parts.append(f"\n#### {student_id}")
+                report_parts.append(f"**Average Score:** {student_data['average']:.1f}/4.0")
+                
+                # Individual scores
+                competencies = ["Self-Awareness", "Self-Management", "Social Awareness", 
+                               "Relationship Skills", "Decision-Making"]
+                report_parts.append("\n**Individual Scores:**")
+                for i, comp in enumerate(competencies):
+                    score = student_data["scores"][i]
+                    report_parts.append(f"- {comp}: {score}/4")
+                
+                # Add intervention plan if it exists
+                if student_id in st.session_state.screening_interventions:
+                    report_parts.append("\n**Intervention Plan:**")
+                    report_parts.append(st.session_state.screening_interventions[student_id])
+                report_parts.append("")
+        
+        # Monitor students
+        if results["risk_levels"]["monitor"]:
+            report_parts.append("\n### Monitor Students")
+            for student_id in results["risk_levels"]["monitor"]:
+                student_data = results["students"][student_id]
+                report_parts.append(f"\n#### {student_id}")
+                report_parts.append(f"**Average Score:** {student_data['average']:.1f}/4.0")
+                
+                # Individual scores
+                competencies = ["Self-Awareness", "Self-Management", "Social Awareness", 
+                               "Relationship Skills", "Decision-Making"]
+                report_parts.append("\n**Individual Scores:**")
+                for i, comp in enumerate(competencies):
+                    score = student_data["scores"][i]
+                    report_parts.append(f"- {comp}: {score}/4")
+                
+                # Add intervention plan if it exists
+                if student_id in st.session_state.screening_interventions:
+                    report_parts.append("\n**Intervention Plan:**")
+                    report_parts.append(st.session_state.screening_interventions[student_id])
+                report_parts.append("")
+    
+    # On-track students summary
+    if results["risk_levels"]["on_track"]:
+        report_parts.append("\n---\n")
+        report_parts.append("## STUDENTS ON TRACK")
+        for student_id in results["risk_levels"]["on_track"]:
+            avg = results["students"][student_id]["average"]
+            report_parts.append(f"- {student_id}: {avg:.1f}/4.0")
+    
+    return "\n".join(report_parts)
 # --- PROMPTS ---
 SYSTEM_PROMPT = """
 You are an expert SEL (Social-Emotional Learning) consultant supporting K–12 educators. Your guidance is practical, evidence-based, and grounded in research from CASEL, ASCA, and peer-reviewed educational psychology journals.
