@@ -1002,7 +1002,7 @@ with tab7:
         if uploaded_file:
             if load_screening_data(uploaded_file):
                 st.success("✓ Screening data loaded successfully!")
-                st.rerun()
+        
     with col_down:
         if st.session_state.screening_complete:
             screening_json = save_screening_data()
