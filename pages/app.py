@@ -15,8 +15,8 @@ from collections import defaultdict
 import time
 
 # This must be the first Streamlit command in your script
-if not st.session_state.get("password_correct", False):
-    st.switch_page("login.py")
+# if not st.session_state.get("password_correct", False):
+    #st.switch_page("login.py")
 
 # --- API CONFIGURATION ---
 try:
@@ -755,14 +755,7 @@ def load_screening_data(uploaded_file):
         return False
 
 def is_admin():
-    try:
-        admin_emails = st.secrets.get("admin_emails", [])
-        if isinstance(admin_emails, str):
-            admin_emails = [email.strip() for email in admin_emails.split(",")]
-        current_user = st.session_state.get("user_email", "")
-        return current_user in admin_emails
-    except:
-        return False
+    return False  # No admin features in public version
 
 # --- SIDEBAR ---
 with st.sidebar:
