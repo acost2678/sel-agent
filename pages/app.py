@@ -535,10 +535,18 @@ def get_parent_email_prompt(lesson_plan):
 """
 
 def clear_generated_content():
-    keys_to_clear = ["ai_response", "response_title", "student_materials", "differentiation_response", "parent_email"]
+    keys_to_clear = [
+        "ai_response", "response_title", "student_materials", 
+        "differentiation_response", "parent_email", "scenario",
+        "conversation_history", "training_module", "training_scenario",
+        "training_feedback", "check_in_questions", "strategy_response"
+    ]
     for key in keys_to_clear:
         if key in st.session_state: 
             st.session_state[key] = ""
+    # Also clear lists
+    if "conversation_history" in st.session_state:
+        st.session_state.conversation_history = []
 
 # --- SEL SCREENER FUNCTIONS ---
 
