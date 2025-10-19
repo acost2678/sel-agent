@@ -824,6 +824,11 @@ tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(tab_list)
 
 with tab1:
     st.header("Analyze an Existing Lesson Plan")
+    if st.button("🗑️ Clear This Tab", key="clear_tab1"):
+        clear_generated_content()
+        st.success("Tab cleared!")
+        st.rerun()
+    st.info("Upload or paste a lesson plan...")
     st.info("Upload or paste a lesson plan. Get one high-impact, evidence-based SEL integration strategy.")
     st.markdown("**Optional: Add a Specific SEL Focus**")
     col1a, col2a = st.columns(2)
