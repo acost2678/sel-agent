@@ -863,16 +863,16 @@ with tab1:
             st.warning("Please upload or paste a lesson plan to begin.")
 
     with tab2:
-    st.header("Create a New, SEL-Integrated Lesson")
-    if st.button("🗑️ Clear This Tab", key="clear_tab2"):
-        clear_generated_content()
-        st.success("Tab cleared!")
-        st.rerun()
-    st.info("Fill in the details...")
-    st.info("Fill in the details to generate a new lesson plan from scratch.")
-    st.markdown("**Optional: Add a Specific SEL Focus**")
-    col1c, col2c = st.columns(2)
-    with col1c:
+        st.header("Create a New, SEL-Integrated Lesson")
+        if st.button("🗑️ Clear This Tab", key="clear_tab2"):
+            clear_generated_content()
+            st.success("Tab cleared!")
+            st.rerun()
+        st.info("Fill in the details...")
+        st.info("Fill in the details to generate a new lesson plan from scratch.")
+        st.markdown("**Optional: Add a Specific SEL Focus**")
+        col1c, col2c = st.columns(2)
+        with col1c:
         create_competency = st.selectbox("Select a CASEL Competency", options=CASEL_COMPETENCIES, index=None, placeholder="Choose a competency...", key="create_comp")
     with col2c:
         if create_competency:
