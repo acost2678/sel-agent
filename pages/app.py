@@ -862,8 +862,13 @@ with tab1:
         else: 
             st.warning("Please upload or paste a lesson plan to begin.")
 
-with tab2:
+    with tab2:
     st.header("Create a New, SEL-Integrated Lesson")
+    if st.button("🗑️ Clear This Tab", key="clear_tab2"):
+        clear_generated_content()
+        st.success("Tab cleared!")
+        st.rerun()
+    st.info("Fill in the details...")
     st.info("Fill in the details to generate a new lesson plan from scratch.")
     st.markdown("**Optional: Add a Specific SEL Focus**")
     col1c, col2c = st.columns(2)
@@ -892,6 +897,13 @@ with tab2:
                     st.session_state.response_title = "Your New SEL-Integrated Lesson Plan"
 
 with tab3:
+    st.header("Interactive SEL Scenarios")
+    if st.button("🗑️ Clear This Tab", key="clear_tab3"):
+        st.session_state.scenario = ""
+        st.session_state.conversation_history = []
+        st.success("Scenario cleared!")
+        st.rerun()
+    st.info("Select a competency...")
     st.header("Interactive SEL Scenarios")
     st.info("Select a competency and skill to generate a practice scenario.")
     col1b, col2b, col3b = st.columns(3)
@@ -928,6 +940,14 @@ with tab3:
                         st.rerun()
 
 with tab4:
+    st.header("👩‍🏫 Teacher SEL Training")
+    if st.button("🗑️ Clear This Tab", key="clear_tab4"):
+        st.session_state.training_module = ""
+        st.session_state.training_scenario = ""
+        st.session_state.training_feedback = ""
+        st.success("Training cleared!")
+        st.rerun()
+    st.info("Select a competency...")
     st.header("👩‍🏫 Teacher SEL Training")
     st.info("Select a competency to begin an in-depth training module.")
     training_competency = st.selectbox("Select a CASEL Competency to learn about", options=CASEL_COMPETENCIES, index=None, placeholder="Choose a competency...", key="training_comp_select")
@@ -973,6 +993,12 @@ with tab4:
 
 with tab5:
     st.header("☀️ SEL Morning Check-in")
+    if st.button("🗑️ Clear This Tab", key="clear_tab5"):
+        st.session_state.check_in_questions = ""
+        st.success("Questions cleared!")
+        st.rerun()
+    st.info("Generate creative questions...")
+    st.header("☀️ SEL Morning Check-in")
     st.info("Generate creative questions for your morning meeting or class check-in.")
     col1d, col2d = st.columns(2)
     with col1d:
@@ -991,6 +1017,12 @@ with tab5:
 
 with tab6:
     st.header("🆘 On-Demand Strategy Finder")
+    if st.button("🗑️ Clear This Tab", key="clear_tab6"):
+        st.session_state.strategy_response = ""
+        st.success("Strategy cleared!")
+        st.rerun()
+    st.info("Describe a classroom situation...")
+    st.header("🆘 On-Demand Strategy Finder")
     st.info("Describe a classroom situation to get immediate, actionable SEL strategies.")
     situation = st.text_area("Describe the situation in your classroom:", placeholder="e.g., 'Two students are arguing over a shared resource' or 'My class is very unfocused after lunch.'", height=150)
     if st.button("💡 Find a Strategy"):
@@ -1007,6 +1039,15 @@ with tab6:
         st.markdown(st.session_state.strategy_response)
 
 with tab7:
+    st.header("📊 Quick SEL Screener")
+    if st.button("🗑️ Reset Screener", key="clear_tab7"):
+        st.session_state.screening_data = {}
+        st.session_state.screening_interventions = {}
+        st.session_state.current_student_index = 0
+        st.session_state.screening_complete = False
+        st.success("Screener reset!")
+        st.rerun()
+    st.info("Screen your class...")
     st.header("📊 Quick SEL Screener")
     st.info("Screen your class in under an hour. Identify students who need support and get AI-powered intervention plans.")
     col_up, col_down = st.columns(2)
