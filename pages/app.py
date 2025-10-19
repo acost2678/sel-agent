@@ -872,7 +872,7 @@ with tab1:
         st.info("Fill in the details to generate a new lesson plan from scratch.")
         st.markdown("**Optional: Add a Specific SEL Focus**")
         col1c, col2c = st.columns(2)
-        with col1c:
+    with col1c:
         create_competency = st.selectbox("Select a CASEL Competency", options=CASEL_COMPETENCIES, index=None, placeholder="Choose a competency...", key="create_comp")
     with col2c:
         if create_competency:
