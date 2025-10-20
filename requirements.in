@@ -1,0 +1,19 @@
+# ---- Core runtime ----
+streamlit>=1.28,<2
+anthropic>=0.25,<1
+
+# ---- Document parsing & generation ----
+python-docx>=1.0
+python-pptx>=0.6
+PyPDF2>=3.0
+
+# ---- Optional utilities ----
+# markdown2>=2.4        # only if you convert markdown → HTML
+# fpdf>=1.7             # only if you export PDFs directly
+# python-dotenv>=1.0    # only if you load local .env in development
+
+# ---- Notes ----
+# This file lists the *abstract* deps you want.
+# Generate the locked, fully pinned requirements.txt with:
+#   pip install pip-tools
+#   pip-compile requirements.in -o requirements.txt
