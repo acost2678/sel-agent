@@ -1,15 +1,22 @@
+# --- Core ---
 streamlit==1.36.0
 anthropic==0.25.9
+
+# --- Doc parsing ---
 python-docx==1.1.2
 python-pptx==0.6.23
 PyPDF2==3.0.1
 
-# Fix anthropic+httpx mismatch
+# --- Fix anthropic/httpx mismatch ---
 httpx==0.26.0
 httpcore==0.17.3
 
-# Satisfy Streamlit 1.36 (requires rich<14)
+# --- Pin Streamlit-compatible Markdown stack ---
 rich==13.7.1
+markdown-it-py==2.2.0
+mdurl==0.1.2
+pygments==2.19.2
+
 
 
 
