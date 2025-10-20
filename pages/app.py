@@ -646,9 +646,9 @@ def get_class_strategies_prompt(results, grade_level):
 
 **Class Overview:**
 - Total Students: {results["total_students"]}
-- On Track: {len(results["risk_levels"]["on_track'])} students ({on_track_pct:.0f}%)
-- Need Monitoring: {len(results["risk_levels"]["monitor'])} students
-- Priority Support: {len(results["risk_levels"]["priority'])} students
+- On Track: {len(results["risk_levels"]["on_track"])} students ({on_track_pct:.0f}%)
+- Need Monitoring: {len(results["risk_levels"]["monitor"])} students
+- Priority Support: {len(results["risk_levels"]["priority"])} students
 
 **Class Competency Averages:**
 {chr(10).join(f"- {comp}: {score:.1f}/4.0" for comp, score in class_avgs.items())}
@@ -683,7 +683,6 @@ Provide whole-class strategies to strengthen the lowest area. Format as:
 
 Keep strategies evidence-based, practical, and engaging for {grade_level} students.
 """
-
 
 def save_screening_data():
     if not st.session_state.screening_data:
